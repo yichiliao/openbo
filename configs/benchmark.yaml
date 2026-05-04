@@ -1,0 +1,4 @@
+function: branin
+n_evals: 20
+seed: 0
+method: random

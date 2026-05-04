@@ -1,0 +1,1 @@
+"""CoNBO acquisition placeholder."""

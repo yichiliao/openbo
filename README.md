@@ -45,3 +45,6 @@ This writes `benchmark_y_values.png` with line plots of `iteration` vs observed 
 - `tests/` - unit tests for functions, GP, acquisitions, and optimizer smoke tests
 - `configs/` - lightweight config files for benchmark/method settings
 - `notebooks/` - teaching notebooks for BO concepts and methods
+
+## Contact
+This repo is created and maintained by Yi-Chi Liao (yichi.liao@inf.ethz.ch).

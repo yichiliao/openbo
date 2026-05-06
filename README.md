@@ -15,7 +15,6 @@ This repository currently includes a first vertical slice:
 - log-regret plotting (single-task and family mean/std, including best-so-far)
 - reusable train/test family split generation and persistence
 
-The code is intentionally simple and teaching-oriented.
 
 ## Quickstart
 
@@ -111,6 +110,10 @@ This writes:
 - `family_mean_std_plot.png`
 - `family_best_so_far_mean_std_plot.png`
 
+Important:
+- `plot_family_results.py` generates plots, but does **not** save per-task trajectories.
+- Use `run_family_benchmark.py` when you want trajectory JSON files.
+
 With `--test-id` and `--results-dir`, plots are saved under:
 - `test_results/plots/`
 
@@ -122,6 +125,19 @@ uv run python scripts/plot_family_results.py \
   --test-id exp001_from_stored \
   --results-dir test_results
 ```
+
+## Results folder convention
+
+By default, artifacts are organized under `test_results/`:
+
+- `test_results/trajectories/`
+  - single-function run JSONs:
+    - `{test_id}_{method}_{function}.json`
+  - family run folders:
+    - `{test_id}_{method}_{base_function}_{subset}/`
+    - containing one task file per task plus `summary.json`
+- `test_results/plots/`
+  - single-function and family plot PNGs
 
 ## Project structure
 

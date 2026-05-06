@@ -6,11 +6,12 @@ OpenMetaBO is a research + teaching Python library for Bayesian optimization (BO
 
 This repository currently includes a first vertical slice:
 
-- synthetic test functions (`Branin`, `Sphere`) in normalized input space `[0, 1]^d`
+- synthetic test functions (`Branin`, `Sphere`, `Ackley`, `Rastrigin`, `Rosenbrock`, `Hartmann6`) in normalized input space `[0, 1]^d`
 - random search baseline
 - BO from scratch (NumPy GP + EI)
 - BO with BoTorch (`SingleTaskGP` + `LogExpectedImprovement`)
 - single-task and family benchmark runners
+- trajectory persistence for single-task and family runs
 - log-regret plotting (single-task and family mean/std, including best-so-far)
 - reusable train/test family split generation and persistence
 
@@ -34,6 +35,19 @@ uv run python scripts/run_benchmark.py --method bo_scratch
 uv run python scripts/run_benchmark.py --method bo_botorch
 ```
 
+Store outputs with experiment ids:
+
+```bash
+uv run python scripts/run_benchmark.py \
+  --method bo_scratch \
+  --function branin \
+  --test-id exp_single_001 \
+  --results-dir test_results
+```
+
+This saves:
+- `test_results/trajectories/exp_single_001_bo_scratch_branin.json`
+
 Compare methods on one function and plot log-regret:
 
 ```bash
@@ -42,6 +56,17 @@ uv run python scripts/plot_results.py
 
 This writes `benchmark_y_values.png`.
 The y-axis is `log10(optimal_value - y_at_iteration)` using the known optimum.
+
+Plot from stored single-run trajectories (no optimizer rerun):
+
+```bash
+uv run python scripts/plot_results.py \
+  --methods random bo_scratch bo_botorch \
+  --function branin \
+  --trajectory-dir test_results/trajectories \
+  --test-id exp_single_001 \
+  --output test_results/plots/exp_single_001_from_stored.png
+```
 
 ## Family-of-functions workflow
 
@@ -71,8 +96,10 @@ uv run python scripts/run_family_benchmark.py \
   --results-dir test_results
 ```
 
-This saves per-task trajectories and summary JSON to:
-- `test_results/trajectories/`
+This saves per-task trajectories and summary JSON under a run subfolder:
+- `test_results/trajectories/exp001_bo_scratch_branin_test/`
+- one JSON per task (e.g. `test_task_000.json`)
+- one run summary (`summary.json`)
 
 Plot family results (mean/std log-regret and best-so-far log-regret):
 
@@ -87,6 +114,15 @@ This writes:
 With `--test-id` and `--results-dir`, plots are saved under:
 - `test_results/plots/`
 
+Plot family results directly from a stored run folder (no optimizer rerun):
+
+```bash
+uv run python scripts/plot_family_results.py \
+  --trajectory-run-dir test_results/trajectories/exp001_bo_scratch_branin_test \
+  --test-id exp001_from_stored \
+  --results-dir test_results
+```
+
 ## Project structure
 
 - `README.md` - project overview and usage.
@@ -96,7 +132,7 @@ With `--test-id` and `--results-dir`, plots are saved under:
   - `methods/*.yaml` - method-level config placeholders.
   - `family_splits/*.json` - persisted train/test task-family splits.
 - `src/metabo/` - main package.
-  - `test_functions/synthetic.py` - base synthetic objectives (`Branin`, `Sphere`) and known optima.
+  - `test_functions/synthetic.py` - base synthetic objectives and known optima.
   - `test_functions/tasks.py` - variant spec + transform wrapper for per-task perturbations.
   - `test_functions/registry.py` - function metadata registry and family builders.
   - `test_functions/families.py` - family generation, train/test split, save/load utilities.
@@ -109,10 +145,10 @@ With `--test-id` and `--results-dir`, plots are saved under:
   - `benchmarks/runner.py` - unified entrypoint for single-function benchmark runs.
 - `scripts/` - command-line entrypoints.
   - `run_benchmark.py` - run a single-function benchmark.
-  - `plot_results.py` - single-function method comparison plot.
+  - `plot_results.py` - single-function comparison plot (rerun or from stored trajectories).
   - `create_family_split.py` - create and save train/test split for a task family.
-  - `run_family_benchmark.py` - run one method over family tasks (or a saved split subset).
-  - `plot_family_results.py` - family mean/std plots (raw and best-so-far log-regret).
+  - `run_family_benchmark.py` - run one method over family tasks and save one JSON per task.
+  - `plot_family_results.py` - family mean/std plots (rerun or from stored trajectories).
 - `tests/` - test suite.
   - `test_functions_test.py` - synthetic functions, variants, and family split persistence tests.
   - `gp_scratch_test.py` - scratch GP fit/posterior tests.

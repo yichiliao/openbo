@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import json
+from pathlib import Path
 
 from metabo.benchmarks.runner import run_simple_benchmark
 
@@ -31,6 +33,16 @@ def parse_args() -> argparse.Namespace:
         help="Number of BO iterations after initialization (BO methods only).",
     )
     parser.add_argument("--seed", type=int, default=0, help="Random seed.")
+    parser.add_argument(
+        "--results-dir",
+        default="test_results",
+        help="Root folder for test artifacts.",
+    )
+    parser.add_argument(
+        "--test-id",
+        default="default",
+        help="Experiment id used in output filenames.",
+    )
     return parser.parse_args()
 
 
@@ -49,6 +61,21 @@ def main() -> None:
         f"method={args.method} function={args.function} "
         f"best_value={result.best_value:.6f} best_x={result.best_x}"
     )
+
+    trajectories_dir = Path(args.results_dir) / "trajectories"
+    trajectories_dir.mkdir(parents=True, exist_ok=True)
+    output_path = trajectories_dir / f"{args.test_id}_{args.method}_{args.function}.json"
+    payload = {
+        "test_id": args.test_id,
+        "method": args.method,
+        "function": args.function,
+        "best_value": result.best_value,
+        "best_x": result.best_x,
+        "x_values": result.x_values,
+        "y_values": result.y_values,
+    }
+    output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(f"saved_trajectory={output_path}")
 
 
 if __name__ == "__main__":

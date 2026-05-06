@@ -7,6 +7,22 @@ import math
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+BRANIN_MAXIMUM: float = -0.39788735772973816
+SPHERE_MAXIMUM: float = 0.0
+ACKLEY_MAXIMUM: float = 0.0
+RASTRIGIN_MAXIMUM: float = 0.0
+ROSENBROCK_MAXIMUM: float = 0.0
+HARTMANN6_MAXIMUM: float = 3.322368011415515
+
+KNOWN_OPTIMA: dict[str, float] = {
+    "branin": BRANIN_MAXIMUM,
+    "sphere": SPHERE_MAXIMUM,
+    "ackley": ACKLEY_MAXIMUM,
+    "rastrigin": RASTRIGIN_MAXIMUM,
+    "rosenbrock": ROSENBROCK_MAXIMUM,
+    "hartmann6": HARTMANN6_MAXIMUM,
+}
+
 
 def _as_2d(x: ArrayLike, dim: int) -> NDArray[np.float64]:
     """Return `x` as a 2D float array with shape `(n, dim)`."""
@@ -57,3 +73,70 @@ def sphere(x: ArrayLike) -> NDArray[np.float64]:
     arr = _as_2d(x, dim=2)
     arr_native = _from_unit_cube(arr, bounds=[(-5.0, 5.0), (-5.0, 5.0)])
     return (-np.sum(arr_native**2, axis=1, dtype=float)).astype(np.float64)
+
+
+def ackley(x: ArrayLike) -> NDArray[np.float64]:
+    """Evaluate maximization Ackley objective on `[0, 1]^2`."""
+    arr = _as_2d(x, dim=2)
+    arr_native = _from_unit_cube(arr, bounds=[(-5.0, 5.0), (-5.0, 5.0)])
+    d = arr_native.shape[1]
+    sq_term = np.mean(arr_native**2, axis=1)
+    cos_term = np.mean(np.cos(2.0 * math.pi * arr_native), axis=1)
+    y_min = (
+        -20.0 * np.exp(-0.2 * np.sqrt(sq_term))
+        - np.exp(cos_term)
+        + 20.0
+        + math.e
+    )
+    return (-y_min).astype(np.float64)
+
+
+def rastrigin(x: ArrayLike) -> NDArray[np.float64]:
+    """Evaluate maximization Rastrigin objective on `[0, 1]^2`."""
+    arr = _as_2d(x, dim=2)
+    arr_native = _from_unit_cube(arr, bounds=[(-5.12, 5.12), (-5.12, 5.12)])
+    d = arr_native.shape[1]
+    y_min = 10.0 * d + np.sum(
+        arr_native**2 - 10.0 * np.cos(2.0 * math.pi * arr_native),
+        axis=1,
+        dtype=float,
+    )
+    return (-y_min).astype(np.float64)
+
+
+def rosenbrock(x: ArrayLike) -> NDArray[np.float64]:
+    """Evaluate maximization Rosenbrock objective on `[0, 1]^2`."""
+    arr = _as_2d(x, dim=2)
+    arr_native = _from_unit_cube(arr, bounds=[(-2.0, 2.0), (-2.0, 2.0)])
+    x1 = arr_native[:, 0]
+    x2 = arr_native[:, 1]
+    y_min = (1.0 - x1) ** 2 + 100.0 * (x2 - x1**2) ** 2
+    return (-y_min).astype(np.float64)
+
+
+def hartmann6(x: ArrayLike) -> NDArray[np.float64]:
+    """Evaluate maximization Hartmann6 objective on `[0, 1]^6`."""
+    arr = _as_2d(x, dim=6)
+    alpha = np.array([1.0, 1.2, 3.0, 3.2], dtype=np.float64)
+    a = np.array(
+        [
+            [10.0, 3.0, 17.0, 3.5, 1.7, 8.0],
+            [0.05, 10.0, 17.0, 0.1, 8.0, 14.0],
+            [3.0, 3.5, 1.7, 10.0, 17.0, 8.0],
+            [17.0, 8.0, 0.05, 10.0, 0.1, 14.0],
+        ],
+        dtype=np.float64,
+    )
+    p = 1e-4 * np.array(
+        [
+            [1312.0, 1696.0, 5569.0, 124.0, 8283.0, 5886.0],
+            [2329.0, 4135.0, 8307.0, 3736.0, 1004.0, 9991.0],
+            [2348.0, 1451.0, 3522.0, 2883.0, 3047.0, 6650.0],
+            [4047.0, 8828.0, 8732.0, 5743.0, 1091.0, 381.0],
+        ],
+        dtype=np.float64,
+    )
+    diff = arr[:, None, :] - p[None, :, :]
+    inner = np.sum(a[None, :, :] * diff**2, axis=2)
+    y_min = -np.sum(alpha[None, :] * np.exp(-inner), axis=1)
+    return (-y_min).astype(np.float64)

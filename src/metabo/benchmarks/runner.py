@@ -18,6 +18,7 @@ class BenchmarkResult:
 
     best_value: float
     best_x: list[float]
+    x_values: list[list[float]]
     y_values: list[float]
 
 
@@ -91,5 +92,6 @@ def run_simple_benchmark(
     return BenchmarkResult(
         best_value=float(y[best_idx]),
         best_x=[float(v) for v in x[best_idx]],
+        x_values=[[float(v) for v in row] for row in x],
         y_values=[float(v) for v in y],
     )

@@ -65,13 +65,17 @@ def run_simple_benchmark(
     if method == "random":
         optimizer = RandomSearch(bounds=bounds, seed=seed)
         x, y = optimizer.run(objective=objective, n_evals=n_evals)
-    elif method == "bo_scratch":
+    elif method in {"bo_scratch", "bo_scratch_multistart", "bo_scratch_grid"}:
         resolved_n_init, resolved_n_iter = resolve_bo_budget(n_evals, n_init, n_iter)
+        scratch_strategy = (
+            "grid" if method == "bo_scratch_grid" else "multistart"
+        )
         result = run_bo_scratch(
             objective=objective,
             bounds=bounds,
             n_init=resolved_n_init,
             n_iter=resolved_n_iter,
+            search_strategy=scratch_strategy,
             seed=seed,
         )
         x, y = result.x_obs, result.y_obs

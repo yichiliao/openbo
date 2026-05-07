@@ -26,11 +26,18 @@ uv run pytest
 
 ## Single-function workflow
 
-Run one benchmark on a single base function (default: `branin`):
+Run one benchmark on a single base function (default: `branin`).
+
+Available methods:
+- `random`
+- `bo_scratch_grid`
+- `bo_scratch_multistart`
+- `bo_botorch`
 
 ```bash
 uv run python scripts/run_benchmark.py --method random
-uv run python scripts/run_benchmark.py --method bo_scratch
+uv run python scripts/run_benchmark.py --method bo_scratch_grid
+uv run python scripts/run_benchmark.py --method bo_scratch_multistart
 uv run python scripts/run_benchmark.py --method bo_botorch
 ```
 
@@ -38,14 +45,78 @@ Store outputs with experiment ids:
 
 ```bash
 uv run python scripts/run_benchmark.py \
-  --method bo_scratch \
+  --method bo_scratch_multistart \
   --function branin \
   --test-id exp_single_001 \
   --results-dir test_results
 ```
 
 This saves:
-- `test_results/trajectories/exp_single_001_bo_scratch_branin.json`
+- `test_results/trajectories/exp_single_001_bo_scratch_multistart_branin.json`
+
+Generate a 2D search-trajectory plot on top of a function-value heatmap
+(blue-to-red), with points colored by iteration (light gray to black):
+
+```bash
+uv run python scripts/run_benchmark.py \
+  --method bo_botorch \
+  --function branin \
+  --n-evals 30 \
+  --test-id xloc_demo \
+  --results-dir test_results \
+  --plot-x-locations
+```
+
+This writes:
+- `test_results/plots/xloc_demo_bo_botorch_branin_x_locations.png`
+
+### 2D heatmap + trajectory quick recipes
+
+This feature is available only for 2D functions (e.g. `branin`, `sphere`, `ackley`, `rastrigin`, `rosenbrock`).
+For non-2D functions (e.g. `hartmann6`), the script will skip this plot.
+
+Run all three methods on the same 2D function so outputs are easy to compare:
+
+```bash
+uv run python scripts/run_benchmark.py \
+  --method random \
+  --function sphere \
+  --n-evals 30 \
+  --test-id xloc_sphere \
+  --results-dir test_results \
+  --plot-x-locations
+
+uv run python scripts/run_benchmark.py \
+  --method bo_scratch_multistart \
+  --function sphere \
+  --n-evals 30 \
+  --test-id xloc_sphere \
+  --results-dir test_results \
+  --plot-x-locations
+
+uv run python scripts/run_benchmark.py \
+  --method bo_botorch \
+  --function sphere \
+  --n-evals 30 \
+  --test-id xloc_sphere \
+  --results-dir test_results \
+  --plot-x-locations
+```
+
+These commands write:
+- `test_results/plots/xloc_sphere_random_sphere_x_locations.png`
+- `test_results/plots/xloc_sphere_bo_scratch_multistart_sphere_x_locations.png`
+- `test_results/plots/xloc_sphere_bo_botorch_sphere_x_locations.png`
+
+You can override the output path with `--plot-output`:
+
+```bash
+uv run python scripts/run_benchmark.py \
+  --method bo_botorch \
+  --function branin \
+  --plot-x-locations \
+  --plot-output test_results/plots/custom_branin_xloc.png
+```
 
 Compare methods on one function and plot log-regret:
 
@@ -60,7 +131,7 @@ Plot from stored single-run trajectories (no optimizer rerun):
 
 ```bash
 uv run python scripts/plot_results.py \
-  --methods random bo_scratch bo_botorch \
+  --methods random bo_scratch_grid bo_scratch_multistart bo_botorch \
   --function branin \
   --trajectory-dir test_results/trajectories \
   --test-id exp_single_001 \
@@ -72,7 +143,19 @@ uv run python scripts/plot_results.py \
 Run one method across a family of Branin variants:
 
 ```bash
-uv run python scripts/run_family_benchmark.py --method bo_scratch --n-tasks 10
+uv run python scripts/run_family_benchmark.py --method bo_scratch_multistart --n-tasks 10
+```
+
+Compare multiple methods on one family in a single plot run:
+
+```bash
+uv run python scripts/plot_family_results.py \
+  --base-function branin \
+  --methods random bo_scratch_grid bo_scratch_multistart bo_botorch \
+  --n-tasks 10 \
+  --n-evals 30 \
+  --test-id compare_all_methods_branin10 \
+  --results-dir test_results
 ```
 
 Create a persistent train/test split:
@@ -88,7 +171,7 @@ Run benchmark only on test tasks from the saved split:
 
 ```bash
 uv run python scripts/run_family_benchmark.py \
-  --method bo_scratch \
+  --method bo_scratch_multistart \
   --split-path configs/family_splits/branin_split.json \
   --subset test \
   --test-id exp001 \
@@ -153,14 +236,14 @@ By default, artifacts are organized under `test_results/`:
   - `test_functions/registry.py` - function metadata registry and family builders.
   - `test_functions/families.py` - family generation, train/test split, save/load utilities.
   - `models/gp_scratch.py` - simple NumPy GP regression (fit/posterior).
-  - `models/kernels.py` - RBF kernel implementation.
+  - `models/kernels.py` - kernel implementations (RBF and Matérn-5/2 ARD).
   - `acquisition/ei.py` - scratch Expected Improvement.
   - `optimizers/random_search.py` - random search baseline.
-  - `optimizers/bo_scratch.py` - sequential BO with scratch GP + EI.
+  - `optimizers/bo_scratch.py` - sequential BO with scratch GP + EI (grid or multi-start search).
   - `optimizers/bo_botorch.py` - sequential BO with BoTorch GP + LogEI.
   - `benchmarks/runner.py` - unified entrypoint for single-function benchmark runs.
 - `scripts/` - command-line entrypoints.
-  - `run_benchmark.py` - run a single-function benchmark.
+  - `run_benchmark.py` - run a single-function benchmark (optionally with 2D heatmap + x-location plotting via `--plot-x-locations`).
   - `plot_results.py` - single-function comparison plot (rerun or from stored trajectories).
   - `create_family_split.py` - create and save train/test split for a task family.
   - `run_family_benchmark.py` - run one method over family tasks and save one JSON per task.

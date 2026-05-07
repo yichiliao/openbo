@@ -34,7 +34,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--method",
-        choices=["random", "bo_scratch", "bo_botorch"],
+        choices=[
+            "random",
+            "bo_scratch",
+            "bo_scratch_multistart",
+            "bo_scratch_grid",
+            "bo_botorch",
+        ],
         default="bo_scratch",
         help="Optimization method to evaluate.",
     )
@@ -90,12 +96,16 @@ def _run_one_task(
         n_init = max(3, int(round(0.2 * n_evals)))
         n_init = min(n_init, max(n_evals - 1, 1))
         n_iter = max(n_evals - n_init, 1)
-        if method == "bo_scratch":
+        if method in {"bo_scratch", "bo_scratch_multistart", "bo_scratch_grid"}:
+            scratch_strategy = (
+                "grid" if method == "bo_scratch_grid" else "multistart"
+            )
             result = run_bo_scratch(
                 objective=spec.objective,
                 bounds=spec.bounds,
                 n_init=n_init,
                 n_iter=n_iter,
+                search_strategy=scratch_strategy,
                 seed=seed,
             )
         elif method == "bo_botorch":

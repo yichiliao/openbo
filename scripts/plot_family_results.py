@@ -16,6 +16,14 @@ from metabo.test_functions.families import build_specs, generate_variants, load_
 from metabo.test_functions.registry import FunctionSpec
 from metabo.test_functions.tasks import TASK_DIMS
 
+METHOD_COLORS: dict[str, str] = {
+    "random": "tab:gray",
+    "bo_scratch": "tab:green",
+    "bo_scratch_multistart": "tab:green",
+    "bo_scratch_grid": "tab:orange",
+    "bo_botorch": "tab:blue",
+}
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
@@ -31,7 +39,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--methods",
         nargs="+",
-        choices=["random", "bo_scratch", "bo_botorch"],
+        choices=[
+            "random",
+            "bo_scratch",
+            "bo_scratch_multistart",
+            "bo_scratch_grid",
+            "bo_botorch",
+        ],
         default=["random", "bo_scratch", "bo_botorch"],
         help="Methods to compare.",
     )
@@ -102,12 +116,14 @@ def _run_one_trajectory(spec: FunctionSpec, method: str, n_evals: int, seed: int
         return y.astype(np.float64)
 
     n_init, n_iter = _bo_budget(n_evals)
-    if method == "bo_scratch":
+    if method in {"bo_scratch", "bo_scratch_multistart", "bo_scratch_grid"}:
+        scratch_strategy = "grid" if method == "bo_scratch_grid" else "multistart"
         result = run_bo_scratch(
             objective=spec.objective,
             bounds=spec.bounds,
             n_init=n_init,
             n_iter=n_iter,
+            search_strategy=scratch_strategy,
             seed=seed,
         )
         return result.y_obs.astype(np.float64)
@@ -137,16 +153,25 @@ def _plot_mean_std(
 ) -> None:
     """Plot mean and standard deviation bands from trajectory matrices."""
     plt.figure(figsize=(9, 5))
-    for method, y_mat in method_to_matrix.items():
+    for method in method_to_matrix:
+        y_mat = method_to_matrix[method]
         y_mean = np.mean(y_mat, axis=0)
         y_std = np.std(y_mat, axis=0)
         iterations = np.arange(1, y_mean.shape[0] + 1)
-        plt.plot(iterations, y_mean, linewidth=2.0, label=f"{method} mean")
+        color = METHOD_COLORS.get(method, None)
+        plt.plot(
+            iterations,
+            y_mean,
+            linewidth=2.0,
+            color=color,
+            label=f"{method} mean",
+        )
         plt.fill_between(
             iterations,
             y_mean - y_std,
             y_mean + y_std,
             alpha=0.2,
+            color=color,
             label=f"{method} ±1 std",
         )
 
@@ -237,6 +262,7 @@ def main() -> None:
             best_log_regret_trajectories: list[np.ndarray] = []
             for idx, spec in enumerate(family):
                 if spec.optimum is None:
+                    print(f"Task '{idx}'.")
                     raise ValueError(
                         f"Task '{spec.name}' has unknown optimum; cannot compute log-regret."
                     )

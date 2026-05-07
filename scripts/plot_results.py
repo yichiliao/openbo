@@ -22,7 +22,13 @@ def parse_args() -> argparse.Namespace:
         "--methods",
         nargs="+",
         default=["random", "bo_scratch", "bo_botorch"],
-        choices=["random", "bo_scratch", "bo_botorch"],
+        choices=[
+            "random",
+            "bo_scratch",
+            "bo_scratch_multistart",
+            "bo_scratch_grid",
+            "bo_botorch",
+        ],
         help="Methods to compare.",
     )
     parser.add_argument("--function", default="branin", help="Test function name.")

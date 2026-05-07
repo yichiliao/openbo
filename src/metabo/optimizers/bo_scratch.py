@@ -7,11 +7,55 @@ from typing import Callable
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.optimize import minimize
+from scipy.stats import qmc
 
 from metabo.acquisition.ei import expected_improvement_maximization
 from metabo.models.gp_scratch import GPScratch
 
 Objective = Callable[[NDArray[np.float64]], NDArray[np.float64]]
+
+
+def _ei_scalar(gp: GPScratch, x: NDArray[np.float64], best_y: float) -> float:
+    mean, var = gp.posterior(x[None, :])
+    return float(expected_improvement_maximization(mean, var, best_y)[0])
+
+
+def _maximize_ei_lbfgsb(
+    gp: GPScratch,
+    x0: NDArray[np.float64],
+    lower: NDArray[np.float64],
+    upper: NDArray[np.float64],
+    best_y: float,
+) -> tuple[NDArray[np.float64], float]:
+    """Bounded EI maximization from a single start."""
+
+    def objective(x: NDArray[np.float64]) -> float:
+        return -_ei_scalar(gp, x.astype(np.float64), best_y)
+
+    bounds = [(float(lo), float(hi)) for lo, hi in zip(lower, upper)]
+    result = minimize(
+        objective,
+        x0.astype(np.float64),
+        method="L-BFGS-B",
+        bounds=bounds,
+    )
+    x_opt = np.asarray(result.x, dtype=np.float64)
+    return x_opt, _ei_scalar(gp, x_opt, best_y)
+
+
+def _sobol_in_bounds(
+    lower: NDArray[np.float64],
+    upper: NDArray[np.float64],
+    n: int,
+    rng: np.random.Generator,
+) -> NDArray[np.float64]:
+    """Sample Sobol points in [lower, upper]."""
+    d = lower.shape[0]
+    seed = int(rng.integers(0, 2**31 - 1))
+    engine = qmc.Sobol(d=d, scramble=True, seed=seed)
+    u = engine.random(n).astype(np.float64)
+    return lower + (upper - lower) * u
 
 
 @dataclass
@@ -28,9 +72,8 @@ def run_bo_scratch(
     bounds: list[tuple[float, float]],
     n_init: int = 5,
     n_iter: int = 25,
-    n_candidates: int = 1024,
+    n_candidates: int = 512,
     n_starts: int = 8,
-    local_steps: int = 20,
     search_strategy: str = "multistart",
     kernel_type: str = "matern52", # "rbf" or "matern52"
     optimize_hyperparameters: bool = True,
@@ -39,8 +82,8 @@ def run_bo_scratch(
     """Run a minimal BO loop for a maximization objective.
 
     `search_strategy` controls how the next EI maximizer is found:
-    - "multistart": random pool + local hill-climb around best starts
-    - "grid": dense Cartesian grid over the box bounds
+    - "multistart": Sobol pool + L-BFGS-B refinement from top starts
+    - "grid": dense Sobol candidate scan
     """
     rng = np.random.default_rng(seed)
     d = len(bounds)
@@ -68,9 +111,8 @@ def run_bo_scratch(
         best_y = float(np.max(y_obs))
 
         if search_strategy == "multistart":
-            # Multi-start EI search:
-            # 1) global random pool, 2) pick best starts, 3) local random refinement.
-            x_pool = rng.uniform(lower, upper, size=(n_candidates, d)).astype(np.float64)
+            # Multi-start EI search with Sobol candidates + L-BFGS-B refinement.
+            x_pool = _sobol_in_bounds(lower, upper, n_candidates, rng)
             mean_pool, var_pool = gp.posterior(x_pool)
             ei_pool = expected_improvement_maximization(mean_pool, var_pool, best_y)
 
@@ -81,37 +123,18 @@ def run_bo_scratch(
             best_start_idx = int(np.argmax(ei_pool[start_indices]))
             best_x = x_starts[best_start_idx].copy()
             best_ei = float(ei_pool[start_indices][best_start_idx])
-            step_scale = 0.1 * (upper - lower)
 
             for x_start in x_starts:
-                x_curr = x_start.copy()
-                mean_curr, var_curr = gp.posterior(x_curr[None, :])
-                curr_ei = float(
-                    expected_improvement_maximization(mean_curr, var_curr, best_y)[0]
+                x_refined, ei_refined = _maximize_ei_lbfgsb(
+                    gp=gp, x0=x_start, lower=lower, upper=upper, best_y=best_y
                 )
-                for step in range(local_steps):
-                    decay = 0.95**step
-                    noise = rng.normal(0.0, step_scale * decay, size=d)
-                    x_try = np.clip(x_curr + noise, lower, upper)
-                    mean_try, var_try = gp.posterior(x_try[None, :])
-                    ei_try = float(
-                        expected_improvement_maximization(mean_try, var_try, best_y)[0]
-                    )
-                    if ei_try > curr_ei:
-                        x_curr = x_try
-                        curr_ei = ei_try
-                    if curr_ei > best_ei:
-                        best_ei = curr_ei
-                        best_x = x_curr.copy()
+                if ei_refined > best_ei:
+                    best_ei = ei_refined
+                    best_x = x_refined.copy()
             x_next = best_x[None, :]
         elif search_strategy == "grid":
-            points_per_dim = int(np.ceil(n_candidates ** (1.0 / d)))
-            axes = [
-                np.linspace(lower[j], upper[j], points_per_dim, dtype=np.float64)
-                for j in range(d)
-            ]
-            mesh = np.meshgrid(*axes, indexing="ij")
-            x_grid = np.stack([m.reshape(-1) for m in mesh], axis=1).astype(np.float64)
+            # Always use Sobol sequence for dense global EI scan.
+            x_grid = _sobol_in_bounds(lower, upper, n_candidates, rng)
             mean_grid, var_grid = gp.posterior(x_grid)
             ei_grid = expected_improvement_maximization(mean_grid, var_grid, best_y)
             best_idx = int(np.argmax(ei_grid))

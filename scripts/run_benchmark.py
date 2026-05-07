@@ -63,6 +63,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional output path for x-location plot.",
     )
+    parser.add_argument(
+        "--noisy",
+        action="store_true",
+        help="Use noisy objective outputs (noise_std=0.05, capped at optimum).",
+    )
     return parser.parse_args()
 
 
@@ -128,6 +133,8 @@ def main() -> None:
         method=args.method,
         n_init=args.n_init,
         n_iter=args.n_iter,
+        noise_std=0.05 if args.noisy else 0.0,
+        cap_at_optimum=args.noisy,
     )
     print(
         f"method={args.method} function={args.function} "
@@ -141,6 +148,9 @@ def main() -> None:
         "test_id": args.test_id,
         "method": args.method,
         "function": args.function,
+        "noisy": bool(args.noisy),
+        "noise_std": 0.05 if args.noisy else 0.0,
+        "cap_at_optimum": bool(args.noisy),
         "best_value": result.best_value,
         "best_x": result.best_x,
         "x_values": result.x_values,

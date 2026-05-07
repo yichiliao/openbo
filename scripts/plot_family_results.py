@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -52,6 +53,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n-tasks", type=int, default=10, help="Number of family tasks.")
     parser.add_argument("--n-evals", type=int, default=30, help="Evaluations per task.")
     parser.add_argument("--family-seed", type=int, default=0, help="Family generation seed.")
+    parser.add_argument(
+        "--noisy",
+        action="store_true",
+        help=(
+            "Use noisy objectives in rerun mode "
+            "(noise_std=0.05, cap_at_optimum=True)."
+        ),
+    )
     parser.add_argument(
         "--optimizer-seed",
         type=int,
@@ -229,11 +238,15 @@ def main() -> None:
     args = parse_args()
     effective_base_function = args.base_function
     if args.trajectory_run_dir is None:
+        noise_std = 0.05 if args.noisy else 0.0
+        cap_at_optimum = bool(args.noisy)
         if args.split_path is None:
             variants = generate_variants(
                 base_name=args.base_function,
                 n_tasks=args.n_tasks,
                 seed=args.family_seed,
+                noise_std=noise_std,
+                cap_at_optimum=cap_at_optimum,
             )
             family = build_specs(
                 base_name=args.base_function,
@@ -248,12 +261,26 @@ def main() -> None:
                     f"'{args.base_function}' was requested."
                 )
             if args.subset == "train":
-                family = build_specs(split.base_name, split.train_variants, prefix="train_task")
+                chosen_variants = split.train_variants
             elif args.subset == "test":
-                family = build_specs(split.base_name, split.test_variants, prefix="test_task")
+                chosen_variants = split.test_variants
             else:
-                family = build_specs(split.base_name, split.train_variants, prefix="train_task")
-                family += build_specs(split.base_name, split.test_variants, prefix="test_task")
+                chosen_variants = split.train_variants + split.test_variants
+
+            if args.noisy:
+                chosen_variants = [
+                    replace(v, noise_std=0.05, cap_at_optimum=True)
+                    for v in chosen_variants
+                ]
+
+            if args.subset == "train":
+                family = build_specs(split.base_name, chosen_variants, prefix="train_task")
+            elif args.subset == "test":
+                family = build_specs(split.base_name, chosen_variants, prefix="test_task")
+            else:
+                n_train = len(split.train_variants)
+                family = build_specs(split.base_name, chosen_variants[:n_train], prefix="train_task")
+                family += build_specs(split.base_name, chosen_variants[n_train:], prefix="test_task")
 
         method_to_y_mat: dict[str, np.ndarray] = {}
         method_to_best_mat: dict[str, np.ndarray] = {}

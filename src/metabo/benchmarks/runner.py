@@ -29,6 +29,8 @@ def run_simple_benchmark(
     method: str = "random",
     n_init: int | None = None,
     n_iter: int | None = None,
+    noise_std: float = 0.0,
+    cap_at_optimum: bool = False,
 ) -> BenchmarkResult:
     """Run a minimal benchmark with random or BO methods."""
     if n_evals <= 0:
@@ -58,7 +60,12 @@ def run_simple_benchmark(
             raise ValueError("n_init and n_iter must be positive when provided.")
         return init_points, bo_steps
 
-    spec = get_function_spec(function_name)
+    spec = get_function_spec(
+        function_name,
+        noise_std=noise_std,
+        noise_seed=seed,
+        cap_at_optimum=cap_at_optimum,
+    )
     objective = spec.objective
     bounds = spec.bounds
 

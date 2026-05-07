@@ -87,12 +87,45 @@ def get_test_function(name: str) -> Objective:
         raise KeyError(f"Unknown test function: {name}") from exc
 
 
-def get_function_spec(name: str) -> FunctionSpec:
-    """Return full metadata for a test function."""
+def get_function_spec(
+    name: str,
+    *,
+    noise_std: float = 0.0,
+    noise_seed: int | None = None,
+    cap_at_optimum: bool = False,
+) -> FunctionSpec:
+    """Return full metadata for a test function.
+
+    By default objectives are deterministic. Set ``noise_std > 0`` to add
+    Gaussian output noise; set ``cap_at_optimum=True`` to clip noisy outputs so
+    they never exceed the known optimum for the task.
+    """
     try:
-        return REGISTRY[name]
+        spec = REGISTRY[name]
     except KeyError as exc:
         raise KeyError(f"Unknown test function: {name}") from exc
+    if noise_std < 0.0:
+        raise ValueError("noise_std must be non-negative.")
+    if noise_std == 0.0:
+        return spec
+
+    rng = np.random.default_rng(noise_seed)
+
+    def noisy_objective(x: NDArray[np.float64]) -> NDArray[np.float64]:
+        return spec.objective(
+            x,
+            noise_std=noise_std,
+            rng=rng,
+            cap_at_optimum=cap_at_optimum,
+        )
+
+    return FunctionSpec(
+        name=spec.name,
+        objective=noisy_objective,
+        bounds=spec.bounds,
+        dim=spec.dim,
+        optimum=spec.optimum,
+    )
 
 
 def make_variant_function_spec(
@@ -102,7 +135,12 @@ def make_variant_function_spec(
 ) -> FunctionSpec:
     """Create one task variant from a base function."""
     base = get_function_spec(base_name)
-    objective = make_variant_objective(base.objective, variant, dim=base.dim)
+    objective = make_variant_objective(
+        base.objective,
+        variant,
+        dim=base.dim,
+        base_optimum=base.optimum,
+    )
     variant_optimum: float | None = None
     if base.optimum is not None and variant.output_scale >= 0.0:
         variant_optimum = variant.output_scale * base.optimum
@@ -146,6 +184,7 @@ def make_branin_family(
             input_scale=scale,
             output_scale=output_scale,
             noise_std=0.0,
+            cap_at_optimum=False,
             seed=seed + idx,
         )
         family.append(

@@ -24,6 +24,27 @@ KNOWN_OPTIMA: dict[str, float] = {
 }
 
 
+def _apply_optional_noise(
+    y: NDArray[np.float64],
+    *,
+    optimum: float,
+    noise_std: float,
+    rng: np.random.Generator | None,
+    cap_at_optimum: bool,
+) -> NDArray[np.float64]:
+    """Optionally add Gaussian noise and cap by known optimum."""
+    if noise_std < 0.0:
+        raise ValueError("noise_std must be non-negative.")
+    if noise_std == 0.0:
+        return y.astype(np.float64)
+
+    rng_eff = np.random.default_rng() if rng is None else rng
+    noisy = y + rng_eff.normal(loc=0.0, scale=noise_std, size=y.shape)
+    if cap_at_optimum:
+        noisy = np.minimum(noisy, optimum)
+    return noisy.astype(np.float64)
+
+
 def _as_2d(x: ArrayLike, dim: int) -> NDArray[np.float64]:
     """Return `x` as a 2D float array with shape `(n, dim)`."""
     arr = np.asarray(x, dtype=float)
@@ -44,7 +65,13 @@ def _from_unit_cube(
     return lower + x_unit * (upper - lower)
 
 
-def branin(x: ArrayLike) -> NDArray[np.float64]:
+def branin(
+    x: ArrayLike,
+    *,
+    noise_std: float = 0.0,
+    rng: np.random.Generator | None = None,
+    cap_at_optimum: bool = False,
+) -> NDArray[np.float64]:
     """Evaluate the Branin function.
 
     Input is expected in normalized domain `[0, 1]^2` and is linearly mapped to:
@@ -64,18 +91,43 @@ def branin(x: ArrayLike) -> NDArray[np.float64]:
     t = 1.0 / (8.0 * math.pi)
 
     y_min = a * (x2 - b * x1**2 + c * x1 - r) ** 2 + s * (1 - t) * np.cos(x1) + s
-    # Flip sign so larger is better (maximization objective).
-    return (-y_min).astype(np.float64)
+    y = (-y_min).astype(np.float64)
+    return _apply_optional_noise(
+        y,
+        optimum=BRANIN_MAXIMUM,
+        noise_std=noise_std,
+        rng=rng,
+        cap_at_optimum=cap_at_optimum,
+    )
 
 
-def sphere(x: ArrayLike) -> NDArray[np.float64]:
+def sphere(
+    x: ArrayLike,
+    *,
+    noise_std: float = 0.0,
+    rng: np.random.Generator | None = None,
+    cap_at_optimum: bool = False,
+) -> NDArray[np.float64]:
     """Evaluate maximization Sphere on `[0, 1]^2`, mapped to `[-5, 5]^2`."""
     arr = _as_2d(x, dim=2)
     arr_native = _from_unit_cube(arr, bounds=[(-5.0, 5.0), (-5.0, 5.0)])
-    return (-np.sum(arr_native**2, axis=1, dtype=float)).astype(np.float64)
+    y = (-np.sum(arr_native**2, axis=1, dtype=float)).astype(np.float64)
+    return _apply_optional_noise(
+        y,
+        optimum=SPHERE_MAXIMUM,
+        noise_std=noise_std,
+        rng=rng,
+        cap_at_optimum=cap_at_optimum,
+    )
 
 
-def ackley(x: ArrayLike) -> NDArray[np.float64]:
+def ackley(
+    x: ArrayLike,
+    *,
+    noise_std: float = 0.0,
+    rng: np.random.Generator | None = None,
+    cap_at_optimum: bool = False,
+) -> NDArray[np.float64]:
     """Evaluate maximization Ackley objective on `[0, 1]^2`."""
     arr = _as_2d(x, dim=2)
     arr_native = _from_unit_cube(arr, bounds=[(-5.0, 5.0), (-5.0, 5.0)])
@@ -88,10 +140,23 @@ def ackley(x: ArrayLike) -> NDArray[np.float64]:
         + 20.0
         + math.e
     )
-    return (-y_min).astype(np.float64)
+    y = (-y_min).astype(np.float64)
+    return _apply_optional_noise(
+        y,
+        optimum=ACKLEY_MAXIMUM,
+        noise_std=noise_std,
+        rng=rng,
+        cap_at_optimum=cap_at_optimum,
+    )
 
 
-def rastrigin(x: ArrayLike) -> NDArray[np.float64]:
+def rastrigin(
+    x: ArrayLike,
+    *,
+    noise_std: float = 0.0,
+    rng: np.random.Generator | None = None,
+    cap_at_optimum: bool = False,
+) -> NDArray[np.float64]:
     """Evaluate maximization Rastrigin objective on `[0, 1]^2`."""
     arr = _as_2d(x, dim=2)
     arr_native = _from_unit_cube(arr, bounds=[(-5.12, 5.12), (-5.12, 5.12)])
@@ -101,20 +166,46 @@ def rastrigin(x: ArrayLike) -> NDArray[np.float64]:
         axis=1,
         dtype=float,
     )
-    return (-y_min).astype(np.float64)
+    y = (-y_min).astype(np.float64)
+    return _apply_optional_noise(
+        y,
+        optimum=RASTRIGIN_MAXIMUM,
+        noise_std=noise_std,
+        rng=rng,
+        cap_at_optimum=cap_at_optimum,
+    )
 
 
-def rosenbrock(x: ArrayLike) -> NDArray[np.float64]:
+def rosenbrock(
+    x: ArrayLike,
+    *,
+    noise_std: float = 0.0,
+    rng: np.random.Generator | None = None,
+    cap_at_optimum: bool = False,
+) -> NDArray[np.float64]:
     """Evaluate maximization Rosenbrock objective on `[0, 1]^2`."""
     arr = _as_2d(x, dim=2)
     arr_native = _from_unit_cube(arr, bounds=[(-2.0, 2.0), (-2.0, 2.0)])
     x1 = arr_native[:, 0]
     x2 = arr_native[:, 1]
     y_min = (1.0 - x1) ** 2 + 100.0 * (x2 - x1**2) ** 2
-    return (-y_min).astype(np.float64)
+    y = (-y_min).astype(np.float64)
+    return _apply_optional_noise(
+        y,
+        optimum=ROSENBROCK_MAXIMUM,
+        noise_std=noise_std,
+        rng=rng,
+        cap_at_optimum=cap_at_optimum,
+    )
 
 
-def hartmann6(x: ArrayLike) -> NDArray[np.float64]:
+def hartmann6(
+    x: ArrayLike,
+    *,
+    noise_std: float = 0.0,
+    rng: np.random.Generator | None = None,
+    cap_at_optimum: bool = False,
+) -> NDArray[np.float64]:
     """Evaluate maximization Hartmann6 objective on `[0, 1]^6`."""
     arr = _as_2d(x, dim=6)
     alpha = np.array([1.0, 1.2, 3.0, 3.2], dtype=np.float64)
@@ -139,4 +230,11 @@ def hartmann6(x: ArrayLike) -> NDArray[np.float64]:
     diff = arr[:, None, :] - p[None, :, :]
     inner = np.sum(a[None, :, :] * diff**2, axis=2)
     y_min = -np.sum(alpha[None, :] * np.exp(-inner), axis=1)
-    return (-y_min).astype(np.float64)
+    y = (-y_min).astype(np.float64)
+    return _apply_optional_noise(
+        y,
+        optimum=HARTMANN6_MAXIMUM,
+        noise_std=noise_std,
+        rng=rng,
+        cap_at_optimum=cap_at_optimum,
+    )

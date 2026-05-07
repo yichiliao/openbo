@@ -154,3 +154,65 @@ def test_registry_contains_new_function_specs() -> None:
         spec = get_function_spec(name)
         assert spec.dim == dim
         assert spec.optimum is not None
+
+
+def test_variant_noise_cap_does_not_exceed_optimum() -> None:
+    """Noisy capped variant should never exceed known variant optimum."""
+    variant = TaskVariantSpec(
+        input_shift=(0.0, 0.0),
+        input_scale=(1.0, 1.0),
+        output_scale=1.0,
+        noise_std=0.2,
+        cap_at_optimum=True,
+        seed=0,
+    )
+    spec = make_variant_function_spec("sphere", variant, "sphere_noisy_cap")
+    x = np.array([[0.5, 0.5], [0.45, 0.55]], dtype=np.float64)
+    y = spec.objective(x)
+    assert spec.optimum is not None
+    assert np.all(y <= spec.optimum + 1e-12)
+
+
+def test_variant_spec_from_dict_back_compat_without_cap_field() -> None:
+    """Older split dicts without cap flag should still load."""
+    data = {
+        "input_shift": [0.0, 0.0],
+        "input_scale": [1.0, 1.0],
+        "output_scale": 1.0,
+        "noise_std": 0.0,
+        "seed": 1,
+    }
+    variant = TaskVariantSpec.from_dict(data)
+    assert variant.cap_at_optimum is False
+
+
+def test_synthetic_noise_is_optional_and_shape_preserving() -> None:
+    """Noise should be optional and preserve output shape."""
+    x = np.array([[0.4, 0.6], [0.1, 0.2]], dtype=np.float64)
+    y_det = sphere(x)
+    y_noisy = sphere(x, noise_std=0.1, rng=np.random.default_rng(0))
+    assert y_det.shape == (2,)
+    assert y_noisy.shape == (2,)
+    assert not np.allclose(y_det, y_noisy)
+
+
+def test_synthetic_noise_can_be_capped_at_optimum() -> None:
+    """Capped noisy outputs should never exceed known optimum."""
+    x = np.array([[0.5, 0.5], [0.45, 0.55]], dtype=np.float64)
+    y = sphere(
+        x,
+        noise_std=1.0,
+        rng=np.random.default_rng(1),
+        cap_at_optimum=True,
+    )
+    assert np.all(y <= 0.0 + 1e-12)
+
+
+def test_registry_noisy_spec_is_reproducible_with_seed() -> None:
+    """Seeded noisy specs should produce deterministic noisy outputs."""
+    x = np.array([[0.3, 0.7], [0.2, 0.4]], dtype=np.float64)
+    spec_a = get_function_spec("branin", noise_std=0.2, noise_seed=7)
+    spec_b = get_function_spec("branin", noise_std=0.2, noise_seed=7)
+    y_a = spec_a.objective(x)
+    y_b = spec_b.objective(x)
+    assert np.allclose(y_a, y_b)

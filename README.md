@@ -41,6 +41,29 @@ uv run python scripts/run_benchmark.py --method bo_scratch_multistart
 uv run python scripts/run_benchmark.py --method bo_botorch
 ```
 
+### Noise-free vs noisy objectives
+
+Noise-free benchmarks are the default:
+
+```bash
+uv run python scripts/run_benchmark.py --method bo_scratch_multistart --function branin
+```
+
+Use `--noisy` to enable noisy observations globally for the selected benchmark run
+(`noise_std=0.05`, `cap_at_optimum=True`):
+
+```bash
+uv run python scripts/run_benchmark.py \
+  --method bo_scratch_multistart \
+  --function branin \
+  --noisy
+```
+
+Notes:
+- Without `--noisy`, objectives are deterministic (`noise_std=0.0`).
+- With `--noisy`, noise is seeded from `--seed` for reproducibility.
+- Trajectory JSON files record `noisy`, `noise_std`, and `cap_at_optimum`.
+
 Store outputs with experiment ids:
 
 ```bash
@@ -127,6 +150,19 @@ uv run python scripts/plot_results.py
 This writes `benchmark_y_values.png`.
 The y-axis is `log10(optimal_value - y_at_iteration)` using the known optimum.
 
+`plot_results.py` supports two modes:
+- **Rerun mode (default):** runs optimizers first, then plots.
+- **Stored mode:** loads previously saved trajectory JSON files and plots directly.
+
+Common useful flags:
+- `--methods`: list of methods to compare.
+- `--function`: base function name (e.g. `branin`, `sphere`, `hartmann6`).
+- `--n-evals`: evaluation budget for rerun mode.
+- `--seed`: random seed for rerun mode.
+- `--noisy`: rerun mode only; uses `noise_std=0.05` with capped outputs.
+- `--output`: output PNG path.
+- `--trajectory-dir` + `--test-id`: switch to stored mode.
+
 Plot from stored single-run trajectories (no optimizer rerun):
 
 ```bash
@@ -138,12 +174,48 @@ uv run python scripts/plot_results.py \
   --output test_results/plots/exp_single_001_from_stored.png
 ```
 
+Example rerun command with explicit settings:
+
+```bash
+uv run python scripts/plot_results.py \
+  --methods random bo_scratch_multistart bo_botorch \
+  --function branin \
+  --n-evals 30 \
+  --seed 0 \
+  --output test_results/plots/compare_branin_rerun.png
+```
+
+Example rerun command in noisy mode:
+
+```bash
+uv run python scripts/plot_results.py \
+  --methods random bo_scratch_grid bo_scratch_multistart bo_botorch \
+  --function branin \
+  --n-evals 30 \
+  --seed 0 \
+  --noisy \
+  --output test_results/plots/compare_all_methods_branin_noisy.png
+```
+
+Tip:
+- If you benchmarked with `scripts/run_benchmark.py --noisy`, and want plots from those exact runs, use **stored mode** so the plot reflects the same noisy trajectories.
+
 ## Family-of-functions workflow
 
 Run one method across a family of Branin variants:
 
 ```bash
 uv run python scripts/run_family_benchmark.py --method bo_scratch_multistart --n-tasks 10
+```
+
+Run a noisy family benchmark (noise_std=0.05, capped at optimum):
+
+```bash
+uv run python scripts/run_family_benchmark.py \
+  --method bo_scratch_multistart \
+  --base-function branin \
+  --n-tasks 10 \
+  --noisy
 ```
 
 Compare multiple methods on one family in a single plot run:
@@ -155,6 +227,22 @@ uv run python scripts/plot_family_results.py \
   --n-tasks 10 \
   --n-evals 30 \
   --test-id compare_all_methods_branin10 \
+  --results-dir test_results
+```
+
+Side note: you can compare multiple methods
+on the same family setup in a single plotting run.
+
+Run the same family comparison in noisy mode:
+
+```bash
+uv run python scripts/plot_family_results.py \
+  --base-function branin \
+  --methods random bo_scratch_grid bo_scratch_multistart bo_botorch \
+  --n-tasks 10 \
+  --n-evals 30 \
+  --noisy \
+  --test-id compare_all_methods_branin10_noisy \
   --results-dir test_results
 ```
 
@@ -222,6 +310,11 @@ By default, artifacts are organized under `test_results/`:
 - `test_results/plots/`
   - single-function and family plot PNGs
 
+Practical workflow convention:
+- Keep using `test_results/` as the default for day-to-day experiments and quick iterations.
+- Use `--results-dir benchmark_results` for large, milestone-style benchmark runs that you want to keep stable over time.
+- Prefer unique `--test-id` values for archived runs in `benchmark_results/` to avoid accidental overwrite.
+
 ## Project structure
 
 - `README.md` - project overview and usage.
@@ -231,23 +324,30 @@ By default, artifacts are organized under `test_results/`:
   - `methods/*.yaml` - method-level config placeholders.
   - `family_splits/*.json` - persisted train/test task-family splits.
 - `src/metabo/` - main package.
-  - `test_functions/synthetic.py` - base synthetic objectives and known optima.
-  - `test_functions/tasks.py` - variant spec + transform wrapper for per-task perturbations.
-  - `test_functions/registry.py` - function metadata registry and family builders.
-  - `test_functions/families.py` - family generation, train/test split, save/load utilities.
-  - `models/gp_scratch.py` - simple NumPy GP regression (fit/posterior).
-  - `models/kernels.py` - kernel implementations (RBF and Matérn-5/2 ARD).
-  - `acquisition/ei.py` - scratch Expected Improvement.
-  - `optimizers/random_search.py` - random search baseline.
-  - `optimizers/bo_scratch.py` - sequential BO with scratch GP + EI (grid or multi-start search).
-  - `optimizers/bo_botorch.py` - sequential BO with BoTorch GP + LogEI.
-  - `benchmarks/runner.py` - unified entrypoint for single-function benchmark runs.
+  - `test_functions/synthetic.py` - synthetic objectives + optional Gaussian output noise and optimum capping.
+  - `test_functions/transforms.py` - input transform helpers.
+  - `test_functions/tasks.py` - task-variant spec + affine input/output wrappers (including variant-level noise/capping).
+  - `test_functions/registry.py` - function metadata registry + optional noisy wrappers for single-function specs.
+  - `test_functions/families.py` - family variant generation, train/test split, and split persistence.
+  - `models/gp_scratch.py` - scratch GP with ARD kernels and per-step hyperparameter fitting.
+  - `models/kernels.py` - RBF and Matérn-5/2 ARD kernels.
+  - `models/botorch_gp.py`, `models/preference_gp.py` - placeholder model modules.
+  - `acquisition/ei.py` - Expected Improvement implementations.
+  - `acquisition/pi.py`, `acquisition/ucb.py`, `acquisition/taf.py`, `acquisition/conbo.py`, `acquisition/naf.py`, `acquisition/preference_acq.py` - placeholder acquisition modules.
+  - `optimizers/random_search.py` - random-search baseline.
+  - `optimizers/bo_scratch.py` - scratch BO loop (Sobol candidate scans + multistart L-BFGS-B EI maximization).
+  - `optimizers/bo_botorch.py` - BoTorch BO loop (`SingleTaskGP` + `LogExpectedImprovement`).
+  - `optimizers/taf.py`, `optimizers/conbo.py`, `optimizers/naf.py`, `optimizers/pbo.py`, `optimizers/taf_pbo.py` - placeholder optimizer modules.
+  - `benchmarks/runner.py` - single-function benchmark runner used by CLI scripts.
+  - `benchmarks/seeds.py` - reproducibility helpers.
+  - `benchmarks/metrics.py`, `benchmarks/plotting.py` - placeholder benchmark utilities.
 - `scripts/` - command-line entrypoints.
-  - `run_benchmark.py` - run a single-function benchmark (optionally with 2D heatmap + x-location plotting via `--plot-x-locations`).
-  - `plot_results.py` - single-function comparison plot (rerun or from stored trajectories).
+  - `run_benchmark.py` - run one method on one function; supports `--noisy` and optional 2D x-location plotting.
+  - `plot_results.py` - single-function multi-method comparison plots (rerun or from stored trajectories), with optional `--noisy` rerun mode.
   - `create_family_split.py` - create and save train/test split for a task family.
-  - `run_family_benchmark.py` - run one method over family tasks and save one JSON per task.
-  - `plot_family_results.py` - family mean/std plots (rerun or from stored trajectories).
+  - `run_family_benchmark.py` - run one method across family tasks and save per-task trajectories; supports `--noisy`.
+  - `plot_family_results.py` - family mean/std and best-so-far plots across methods (rerun or from stored trajectories); supports `--noisy` in rerun mode.
+  - `aggregate_results.py` - placeholder aggregation script.
 - `tests/` - test suite.
   - `test_functions_test.py` - synthetic functions, variants, and family split persistence tests.
   - `gp_scratch_test.py` - scratch GP fit/posterior tests.

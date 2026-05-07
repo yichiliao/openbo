@@ -28,6 +28,8 @@ def generate_variants(
     max_input_shift: float = 0.05,
     max_input_scale_delta: float = 0.1,
     max_output_scale_delta: float = 0.1,
+    noise_std: float = 0.0,
+    cap_at_optimum: bool = False,
 ) -> list[TaskVariantSpec]:
     """Generate a list of variants for a given base function."""
     if n_tasks <= 0:
@@ -51,7 +53,8 @@ def generate_variants(
                 input_shift=shift,
                 input_scale=scale,
                 output_scale=output_scale,
-                noise_std=0.0,
+                noise_std=noise_std,
+                cap_at_optimum=cap_at_optimum,
                 seed=seed + idx,
             )
         )
@@ -64,6 +67,8 @@ def generate_branin_variants(
     max_input_shift: float = 0.05,
     max_input_scale_delta: float = 0.1,
     max_output_scale_delta: float = 0.1,
+    noise_std: float = 0.0,
+    cap_at_optimum: bool = False,
 ) -> list[TaskVariantSpec]:
     """Backward-compatible Branin-specific family generator."""
     return generate_variants(
@@ -73,6 +78,8 @@ def generate_branin_variants(
         max_input_shift=max_input_shift,
         max_input_scale_delta=max_input_scale_delta,
         max_output_scale_delta=max_output_scale_delta,
+        noise_std=noise_std,
+        cap_at_optimum=cap_at_optimum,
     )
 
 

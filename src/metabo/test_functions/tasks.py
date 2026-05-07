@@ -35,6 +35,7 @@ class TaskVariantSpec:
     input_scale: tuple[float, ...]
     output_scale: float = 1.0
     noise_std: float = 0.0
+    cap_at_optimum: bool = False
     seed: int | None = None
 
     def to_dict(self) -> dict[str, object]:
@@ -44,6 +45,7 @@ class TaskVariantSpec:
             "input_scale": list(self.input_scale),
             "output_scale": self.output_scale,
             "noise_std": self.noise_std,
+            "cap_at_optimum": self.cap_at_optimum,
             "seed": self.seed,
         }
 
@@ -54,8 +56,9 @@ class TaskVariantSpec:
             input_shift=tuple(float(v) for v in data["input_shift"]),  # type: ignore[index]
             input_scale=tuple(float(v) for v in data["input_scale"]),  # type: ignore[index]
             output_scale=float(data["output_scale"]),  # type: ignore[arg-type]
-            noise_std=float(data["noise_std"]),  # type: ignore[arg-type]
-            seed=None if data["seed"] is None else int(data["seed"]),  # type: ignore[index]
+            noise_std=float(data.get("noise_std", 0.0)),  # type: ignore[arg-type]
+            cap_at_optimum=bool(data.get("cap_at_optimum", False)),
+            seed=None if data.get("seed") is None else int(data["seed"]),  # type: ignore[index]
         )
 
     def validate_for_dim(self, dim: int) -> None:
@@ -72,12 +75,24 @@ class TaskVariantSpec:
             raise ValueError("noise_std must be non-negative.")
 
 
-def make_variant_objective(base_objective: Objective, variant: TaskVariantSpec, dim: int) -> Objective:
+def make_variant_objective(
+    base_objective: Objective,
+    variant: TaskVariantSpec,
+    dim: int,
+    base_optimum: float | None = None,
+) -> Objective:
     """Wrap a base objective with an affine input/output variant."""
     variant.validate_for_dim(dim)
     shift = np.array(variant.input_shift, dtype=np.float64)
     scale = np.array(variant.input_scale, dtype=np.float64)
     rng = np.random.default_rng(variant.seed)
+    variant_optimum: float | None = None
+    if (
+        base_optimum is not None
+        and variant.output_scale >= 0.0
+        and variant.cap_at_optimum
+    ):
+        variant_optimum = variant.output_scale * base_optimum
 
     def objective(x: NDArray[np.float64]) -> NDArray[np.float64]:
         x = np.asarray(x, dtype=np.float64)
@@ -89,6 +104,8 @@ def make_variant_objective(base_objective: Objective, variant: TaskVariantSpec, 
         y = variant.output_scale * base_objective(x_variant)
         if variant.noise_std > 0:
             y = y + rng.normal(0.0, variant.noise_std, size=y.shape)
+            if variant_optimum is not None:
+                y = np.minimum(y, variant_optimum)
         return np.asarray(y, dtype=np.float64)
 
     return objective

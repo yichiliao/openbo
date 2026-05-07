@@ -47,6 +47,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--seed", type=int, default=0, help="Random seed.")
     parser.add_argument(
+        "--noisy",
+        action="store_true",
+        help=(
+            "Use noisy objective outputs in rerun mode "
+            "(noise_std=0.05, cap_at_optimum=True)."
+        ),
+    )
+    parser.add_argument(
         "--output",
         default="benchmark_y_values.png",
         help="Output image path for the line chart.",
@@ -106,6 +114,8 @@ def main() -> None:
                 method=method,
                 n_init=args.n_init,
                 n_iter=args.n_iter,
+                noise_std=0.05 if args.noisy else 0.0,
+                cap_at_optimum=args.noisy,
             )
             y_values = np.asarray(result.y_values, dtype=np.float64)
             final_best = float(result.best_value)

@@ -1,0 +1,29 @@
+{
+  "task_name": "train_task_000",
+  "base_function": "hartmann6",
+  "subset": "train",
+  "optimizer": "bo_scratch_multistart",
+  "n_init": 6,
+  "n_iter": 24,
+  "seed": 0,
+  "gp_state": {
+    "kernel_type": "matern52",
+    "lengthscale": [
+      0.07021839399513714,
+      0.47429039459888894,
+      54.598150033144236,
+      54.598150033144236,
+      0.23103478274895473,
+      0.31419234454026307
+    ],
+    "variance": 0.7521078696317199,
+    "noise": 1e-06,
+    "standardize_targets": true,
+    "optimize_hyperparameters": true,
+    "optimize_noise": false,
+    "y_mean": 0.9313981255796228,
+    "y_std": 1.0711250506204657,
+    "n_observations": 30,
+    "dim": 6
+  }
+}

@@ -43,6 +43,8 @@ def parse_args() -> argparse.Namespace:
             "bo_scratch_grid",
             "bo_botorch",
             "bo_taf",
+            "bo_taf_m",
+            "bo_taf_r",
         ],
         default="bo_scratch",
         help="Optimization method to evaluate.",
@@ -98,6 +100,22 @@ def parse_args() -> argparse.Namespace:
         default=1.0,
         help="Epanechnikov bandwidth rho for TAF-M weighting (bo_taf only).",
     )
+    parser.add_argument(
+        "--taf-weight-mode",
+        choices=["taf_m", "taf_r"],
+        default="taf_m",
+        help="TAF source-weight mode: meta-feature (taf_m) or ranking-based (taf_r).",
+    )
+    parser.add_argument(
+        "--taf-weight-modes",
+        nargs="+",
+        choices=["taf_m", "taf_r"],
+        default=None,
+        help=(
+            "Optional list of TAF modes to run in one command when method=bo_taf, "
+            "e.g. --taf-weight-modes taf_m taf_r."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -122,6 +140,7 @@ def _run_one_task(
     seed: int,
     taf_run_dir: str | None = None,
     taf_rho: float = 1.0,
+    taf_weight_mode: str = "taf_m",
     taf_source_meta: dict[str, np.ndarray] | None = None,
     taf_target_meta: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -153,9 +172,14 @@ def _run_one_task(
                 n_iter=n_iter,
                 seed=seed,
             )
-        elif method == "bo_taf":
+        elif method in {"bo_taf", "bo_taf_m", "bo_taf_r"}:
             if taf_run_dir is None:
-                raise ValueError("taf_run_dir is required when method='bo_taf'.")
+                raise ValueError("taf_run_dir is required for TAF methods.")
+            resolved_taf_mode = (
+                "taf_m" if method == "bo_taf_m" else
+                "taf_r" if method == "bo_taf_r" else
+                taf_weight_mode
+            )
             result = run_bo_taf(
                 objective=spec.objective,
                 bounds=spec.bounds,
@@ -163,6 +187,7 @@ def _run_one_task(
                 n_init=0,
                 n_iter=n_evals,
                 rho=taf_rho,
+                taf_weight_mode=resolved_taf_mode,
                 source_meta_features=taf_source_meta,
                 target_meta_features=taf_target_meta,
                 seed=seed,
@@ -262,66 +287,86 @@ def main() -> None:
             f"n_tasks={len(family)} split_path={args.split_path}"
         )
 
-    final_bests: list[float] = []
+    if args.taf_weight_modes is not None and args.method not in {"bo_taf", "bo_taf_m", "bo_taf_r"}:
+        raise ValueError("--taf-weight-modes is supported only when --method=bo_taf.")
+    taf_modes = (
+        list(dict.fromkeys(args.taf_weight_modes))
+        if args.taf_weight_modes is not None
+        else [args.taf_weight_mode]
+    )
+    if args.method == "bo_taf_m":
+        taf_modes = ["taf_m"]
+    elif args.method == "bo_taf_r":
+        taf_modes = ["taf_r"]
+    elif args.method != "bo_taf":
+        taf_modes = [args.taf_weight_mode]
+
     trajectories_root = Path(args.results_dir) / "trajectories"
     trajectories_root.mkdir(parents=True, exist_ok=True)
     subset_tag = args.subset if args.split_path is not None else "all"
-    run_dir_name = f"{args.test_id}_{args.method}_{args.base_function}_{subset_tag}"
-    run_trajectories_dir = trajectories_root / run_dir_name
-    run_trajectories_dir.mkdir(parents=True, exist_ok=True)
 
-    for idx, spec in enumerate(family):
-        task_seed = args.optimizer_seed + idx
-        target_meta = (
-            _variant_meta_features(eval_variants[idx])
-            if eval_variants is not None
-            else None
-        )
-        x_values, y_values = _run_one_task(
-            spec=spec,
-            method=args.method,
-            n_evals=args.n_evals,
-            seed=task_seed,
-            taf_run_dir=args.taf_run_dir,
-            taf_rho=args.taf_rho,
-            taf_source_meta=source_meta_map,
-            taf_target_meta=target_meta,
-        )
-        final_best = float(np.max(y_values))
-        final_bests.append(final_best)
-        out_name = f"{spec.name}.json"
-        _save_trajectory_file(
-            output_path=run_trajectories_dir / out_name,
-            task_name=spec.name,
-            method=args.method,
-            optimal_value=spec.optimum,
-            x_values=x_values,
-            y_values=y_values,
-        )
+    for taf_mode in taf_modes:
+        final_bests: list[float] = []
+        run_dir_name = f"{args.test_id}_{args.method}_{args.base_function}_{subset_tag}"
+        if args.method in {"bo_taf", "bo_taf_m", "bo_taf_r"}:
+            run_dir_name = f"{run_dir_name}_{taf_mode}"
+        run_trajectories_dir = trajectories_root / run_dir_name
+        run_trajectories_dir.mkdir(parents=True, exist_ok=True)
+
+        for idx, spec in enumerate(family):
+            task_seed = args.optimizer_seed + idx
+            target_meta = (
+                _variant_meta_features(eval_variants[idx])
+                if eval_variants is not None
+                else None
+            )
+            x_values, y_values = _run_one_task(
+                spec=spec,
+                method=args.method,
+                n_evals=args.n_evals,
+                seed=task_seed,
+                taf_run_dir=args.taf_run_dir,
+                taf_rho=args.taf_rho,
+                taf_weight_mode=taf_mode,
+                taf_source_meta=source_meta_map,
+                taf_target_meta=target_meta,
+            )
+            final_best = float(np.max(y_values))
+            final_bests.append(final_best)
+            out_name = f"{spec.name}.json"
+            _save_trajectory_file(
+                output_path=run_trajectories_dir / out_name,
+                task_name=spec.name,
+                method=args.method,
+                optimal_value=spec.optimum,
+                x_values=x_values,
+                y_values=y_values,
+            )
+            print(
+                f"task={idx:02d} name={spec.name} method={args.method} "
+                f"taf_weight_mode={taf_mode} final_best={final_best:.6f}"
+            )
+
+        avg = mean(final_bests)
+        std = pstdev(final_bests) if len(final_bests) > 1 else 0.0
+        print("-" * 72)
         print(
-            f"task={idx:02d} name={spec.name} method={args.method} "
-            f"final_best={final_best:.6f}"
+            f"summary method={args.method} taf_weight_mode={taf_mode} "
+            f"n_tasks={len(final_bests)} mean_final_best={avg:.6f} std_final_best={std:.6f}"
         )
-
-    avg = mean(final_bests)
-    std = pstdev(final_bests) if len(final_bests) > 1 else 0.0
-    print("-" * 72)
-    print(
-        f"summary method={args.method} n_tasks={len(final_bests)} "
-        f"mean_final_best={avg:.6f} std_final_best={std:.6f}"
-    )
-    summary_path = run_trajectories_dir / "summary.json"
-    summary_payload = {
-        "test_id": args.test_id,
-        "method": args.method,
-        "base_function": args.base_function,
-        "subset": subset_tag,
-        "n_tasks": len(final_bests),
-        "mean_final_best": avg,
-        "std_final_best": std,
-    }
-    summary_path.write_text(json.dumps(summary_payload, indent=2), encoding="utf-8")
-    print(f"saved_trajectories_dir={run_trajectories_dir}")
+        summary_path = run_trajectories_dir / "summary.json"
+        summary_payload = {
+            "test_id": args.test_id,
+            "method": args.method,
+            "taf_weight_mode": taf_mode if args.method in {"bo_taf", "bo_taf_m", "bo_taf_r"} else None,
+            "base_function": args.base_function,
+            "subset": subset_tag,
+            "n_tasks": len(final_bests),
+            "mean_final_best": avg,
+            "std_final_best": std,
+        }
+        summary_path.write_text(json.dumps(summary_payload, indent=2), encoding="utf-8")
+        print(f"saved_trajectories_dir={run_trajectories_dir}")
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from scipy.stats import qmc
 from metabo.acquisition.taf import (
     SourceTaskSurrogate,
     compute_taf_m_weights,
+    compute_taf_r_weights,
     taf_m_acquisition,
 )
 from metabo.models.gp_scratch import GPScratch
@@ -227,6 +228,7 @@ def run_bo_taf(
     kernel_type: str = "matern52",
     optimize_hyperparameters: bool = True,
     rho: float = 1.0,
+    taf_weight_mode: str = "taf_m",
     target_weight: float = 1.0,
     source_meta_features: dict[str, NDArray[np.float64]] | None = None,
     target_meta_features: NDArray[np.float64] | None = None,
@@ -308,8 +310,18 @@ def run_bo_taf(
             target_meta = _default_target_meta_when_empty(d)
         else:
             target_meta = _default_meta_features(x_obs, y_obs)
-        source_meta = np.stack([s.meta_features for s in source_surrogates], axis=0)
-        source_weights = compute_taf_m_weights(source_meta, target_meta, rho=rho)
+        if taf_weight_mode == "taf_m":
+            source_meta = np.stack([s.meta_features for s in source_surrogates], axis=0)
+            source_weights = compute_taf_m_weights(source_meta, target_meta, rho=rho)
+        elif taf_weight_mode == "taf_r":
+            source_weights = compute_taf_r_weights(
+                source_surrogates=source_surrogates,
+                x_obs=x_obs,
+                y_obs=y_obs,
+                rho=rho,
+            )
+        else:
+            raise ValueError("taf_weight_mode must be 'taf_m' or 'taf_r'.")
 
         if search_strategy == "multistart":
             x_pool = _sobol_in_bounds(lower, upper, n_candidates, rng)
@@ -436,6 +448,7 @@ def run_bo_taf(
         "n_observations": int(x_obs.shape[0]),
         "dim": int(d),
         "taf_rho": float(rho),
+        "taf_weight_mode": taf_weight_mode,
         "n_sources": int(len(source_surrogates)),
         "source_reference_mode": source_reference_mode,
         "source_reference_quantile": float(source_reference_quantile),

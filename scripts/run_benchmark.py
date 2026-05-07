@@ -25,6 +25,8 @@ def parse_args() -> argparse.Namespace:
             "bo_scratch_multistart",
             "bo_scratch_grid",
             "bo_taf",
+            "bo_taf_m",
+            "bo_taf_r",
         ],
         default="random",
         help="Optimization method.",
@@ -79,6 +81,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=1.0,
         help="Epanechnikov bandwidth rho for TAF-M weighting (bo_taf only).",
+    )
+    parser.add_argument(
+        "--taf-weight-mode",
+        choices=["taf_m", "taf_r"],
+        default="taf_m",
+        help="TAF source-weight mode: meta-feature (taf_m) or ranking-based (taf_r).",
     )
     return parser.parse_args()
 
@@ -149,6 +157,7 @@ def main() -> None:
         cap_at_optimum=args.noisy,
         taf_run_dir=args.taf_run_dir,
         taf_rho=args.taf_rho,
+        taf_weight_mode=args.taf_weight_mode,
     )
     print(
         f"method={args.method} function={args.function} "

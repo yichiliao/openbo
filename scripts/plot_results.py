@@ -28,6 +28,8 @@ def parse_args() -> argparse.Namespace:
             "bo_scratch_multistart",
             "bo_scratch_grid",
             "bo_botorch",
+            "bo_taf_m",
+            "bo_taf_r",
         ],
         help="Methods to compare.",
     )
@@ -75,6 +77,17 @@ def parse_args() -> argparse.Namespace:
             "e.g. {test_id}_{method}_{function}.json."
         ),
     )
+    parser.add_argument(
+        "--taf-run-dir",
+        default=None,
+        help="Path to TAF training run directory (required for bo_taf_m/bo_taf_r).",
+    )
+    parser.add_argument(
+        "--taf-rho",
+        type=float,
+        default=1.0,
+        help="Epanechnikov bandwidth rho for TAF weighting.",
+    )
     return parser.parse_args()
 
 
@@ -116,6 +129,8 @@ def main() -> None:
                 n_iter=args.n_iter,
                 noise_std=0.05 if args.noisy else 0.0,
                 cap_at_optimum=args.noisy,
+                taf_run_dir=args.taf_run_dir,
+                taf_rho=args.taf_rho,
             )
             y_values = np.asarray(result.y_values, dtype=np.float64)
             final_best = float(result.best_value)

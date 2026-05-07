@@ -1,0 +1,57 @@
+{
+  "run_id": "hartmann6_train_v1",
+  "split_path": "configs/family_splits/hartmann6_split.json",
+  "base_function": "hartmann6",
+  "subset": "train",
+  "n_tasks": 9,
+  "n_evals": 30,
+  "optimizer": "bo_scratch_multistart",
+  "output_root": "meta-bo-training/taf-gps",
+  "tasks": [
+    {
+      "task_name": "train_task_000",
+      "seed": 0,
+      "final_best": 3.056693317129877
+    },
+    {
+      "task_name": "train_task_001",
+      "seed": 1,
+      "final_best": 3.261581227257266
+    },
+    {
+      "task_name": "train_task_002",
+      "seed": 2,
+      "final_best": 2.8856960801317473
+    },
+    {
+      "task_name": "train_task_003",
+      "seed": 3,
+      "final_best": 3.0090573168439074
+    },
+    {
+      "task_name": "train_task_004",
+      "seed": 4,
+      "final_best": 1.1948591351492732
+    },
+    {
+      "task_name": "train_task_005",
+      "seed": 5,
+      "final_best": 3.1576574641495707
+    },
+    {
+      "task_name": "train_task_006",
+      "seed": 6,
+      "final_best": 1.693821295482657
+    },
+    {
+      "task_name": "train_task_007",
+      "seed": 7,
+      "final_best": 2.979640427846835
+    },
+    {
+      "task_name": "train_task_008",
+      "seed": 8,
+      "final_best": 3.586253839840845
+    }
+  ]
+}

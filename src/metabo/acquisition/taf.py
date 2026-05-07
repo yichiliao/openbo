@@ -59,6 +59,46 @@ def compute_taf_m_weights(
     )
 
 
+def compute_taf_r_weights(
+    source_surrogates: list[SourceTaskSurrogate],
+    x_obs: NDArray[np.float64],
+    y_obs: NDArray[np.float64],
+    rho: float,
+) -> NDArray[np.float64]:
+    """Compute TAF-R weights from ranking agreement on current target observations."""
+    x_obs = np.asarray(x_obs, dtype=np.float64)
+    y_obs = np.asarray(y_obs, dtype=np.float64)
+    if x_obs.ndim != 2:
+        raise ValueError("x_obs must have shape (n, d).")
+    if y_obs.ndim != 1 or y_obs.shape[0] != x_obs.shape[0]:
+        raise ValueError("y_obs must have shape (n,) and match x_obs rows.")
+
+    n_sources = len(source_surrogates)
+    n = y_obs.shape[0]
+    if n_sources == 0:
+        return np.zeros(0, dtype=np.float64)
+    if n < 2:
+        return np.ones(n_sources, dtype=np.float64)
+
+    weights: list[float] = []
+    for source in source_surrogates:
+        mu_source, _ = source.gp.posterior(x_obs)
+        disagreements = 0
+        total = 0
+        for i in range(n):
+            for j in range(i + 1, n):
+                target_diff = float(y_obs[i] - y_obs[j])
+                source_diff = float(mu_source[i] - mu_source[j])
+                if abs(target_diff) <= 1e-12 or abs(source_diff) <= 1e-12:
+                    continue
+                if (target_diff > 0.0) != (source_diff > 0.0):
+                    disagreements += 1
+                total += 1
+        distance = 0.0 if total == 0 else float(disagreements / total)
+        weights.append(epanechnikov_weight(distance, rho))
+    return np.asarray(weights, dtype=np.float64)
+
+
 def taf_m_acquisition(
     x: NDArray[np.float64],
     target_gp: GPScratch | None,

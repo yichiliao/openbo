@@ -10,6 +10,7 @@ from metabo.acquisition.ei import expected_improvement_maximization
 from metabo.acquisition.taf import (
     SourceTaskSurrogate,
     compute_taf_m_weights,
+    compute_taf_r_weights,
     epanechnikov_weight,
     taf_m_acquisition,
 )
@@ -76,6 +77,23 @@ def test_compute_taf_m_weights_shape() -> None:
     weights = compute_taf_m_weights(source, target, rho=1.5)
     assert weights.shape == (2,)
     assert weights[0] >= weights[1]
+
+
+def test_compute_taf_r_weights_shape_and_range() -> None:
+    """TAF-R weights should be one scalar per source in [0, 0.75]."""
+    x_train = np.array([[0.0, 0.0], [0.5, 0.5], [1.0, 1.0]], dtype=np.float64)
+    y_train = np.array([-1.0, 0.2, 0.1], dtype=np.float64)
+    gp = GPScratch(optimize_hyperparameters=False)
+    gp.fit(x_train, y_train)
+    source = SourceTaskSurrogate(
+        name="src0",
+        gp=gp,
+        best_y=float(np.max(y_train)),
+        meta_features=np.array([0.0, 0.0], dtype=np.float64),
+    )
+    weights = compute_taf_r_weights([source], x_train, y_train, rho=1.0)
+    assert weights.shape == (1,)
+    assert 0.0 <= float(weights[0]) <= 0.75
 
 
 def test_taf_m_acquisition_single_and_batch() -> None:

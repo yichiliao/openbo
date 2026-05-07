@@ -25,6 +25,8 @@ METHOD_COLORS: dict[str, str] = {
     "bo_scratch_grid": "tab:orange",
     "bo_botorch": "tab:blue",
     "bo_taf": "tab:purple",
+    "bo_taf_m": "tab:purple",
+    "bo_taf_r": "tab:brown",
 }
 
 
@@ -49,6 +51,8 @@ def parse_args() -> argparse.Namespace:
             "bo_scratch_grid",
             "bo_botorch",
             "bo_taf",
+            "bo_taf_m",
+            "bo_taf_r",
         ],
         default=["random", "bo_scratch", "bo_botorch"],
         help="Methods to compare.",
@@ -80,6 +84,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=1.0,
         help="Epanechnikov bandwidth rho for TAF-M weighting (bo_taf only).",
+    )
+    parser.add_argument(
+        "--taf-weight-mode",
+        choices=["taf_m", "taf_r"],
+        default="taf_m",
+        help="TAF source-weight mode: meta-feature (taf_m) or ranking-based (taf_r).",
     )
     parser.add_argument(
         "--output",
@@ -152,6 +162,7 @@ def _run_one_trajectory(
     seed: int,
     taf_run_dir: str | None = None,
     taf_rho: float = 1.0,
+    taf_weight_mode: str = "taf_m",
     taf_source_meta: dict[str, np.ndarray] | None = None,
     taf_target_meta: np.ndarray | None = None,
 ) -> np.ndarray:
@@ -182,11 +193,16 @@ def _run_one_trajectory(
             seed=seed,
         )
         return result.y_obs.astype(np.float64)
-    if method == "bo_taf":
+    if method in {"bo_taf", "bo_taf_m", "bo_taf_r"}:
         if taf_run_dir is None:
             raise ValueError(
-                "taf_run_dir is required when methods include 'bo_taf'."
+                "taf_run_dir is required when methods include TAF."
             )
+        resolved_taf_mode = (
+            "taf_m" if method == "bo_taf_m" else
+            "taf_r" if method == "bo_taf_r" else
+            taf_weight_mode
+        )
         result = run_bo_taf(
             objective=spec.objective,
             bounds=spec.bounds,
@@ -194,6 +210,7 @@ def _run_one_trajectory(
             n_init=0,
             n_iter=n_evals,
             rho=taf_rho,
+            taf_weight_mode=resolved_taf_mode,
             source_meta_features=taf_source_meta,
             target_meta_features=taf_target_meta,
             seed=seed,
@@ -376,6 +393,7 @@ def main() -> None:
                     seed,
                     taf_run_dir=args.taf_run_dir,
                     taf_rho=args.taf_rho,
+                    taf_weight_mode=args.taf_weight_mode,
                     taf_source_meta=source_meta_map,
                     taf_target_meta=target_meta,
                 )

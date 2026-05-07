@@ -35,6 +35,7 @@ def run_simple_benchmark(
     cap_at_optimum: bool = False,
     taf_run_dir: str | None = None,
     taf_rho: float = 1.0,
+    taf_weight_mode: str = "taf_m",
 ) -> BenchmarkResult:
     """Run a minimal benchmark with random or BO methods."""
     if n_evals <= 0:
@@ -101,9 +102,14 @@ def run_simple_benchmark(
             seed=seed,
         )
         x, y = result.x_obs, result.y_obs
-    elif method == "bo_taf":
+    elif method in {"bo_taf", "bo_taf_m", "bo_taf_r"}:
         if taf_run_dir is None:
-            raise ValueError("taf_run_dir is required when method='bo_taf'.")
+            raise ValueError("taf_run_dir is required for TAF methods.")
+        resolved_taf_mode = (
+            "taf_m" if method == "bo_taf_m" else
+            "taf_r" if method == "bo_taf_r" else
+            taf_weight_mode
+        )
         resolved_n_iter = n_evals if n_iter is None else n_iter
         result = run_bo_taf(
             objective=objective,
@@ -112,12 +118,14 @@ def run_simple_benchmark(
             n_init=0,
             n_iter=resolved_n_iter,
             rho=taf_rho,
+            taf_weight_mode=resolved_taf_mode,
             seed=seed,
         )
         x, y = result.x_obs, result.y_obs
         metadata = {
             "taf_acquisition_trace": result.final_gp_state.get("taf_acquisition_trace", []),
             "taf_rho": result.final_gp_state.get("taf_rho"),
+            "taf_weight_mode": result.final_gp_state.get("taf_weight_mode"),
             "n_sources": result.final_gp_state.get("n_sources"),
         }
     else:

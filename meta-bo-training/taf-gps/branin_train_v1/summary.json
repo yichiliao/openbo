@@ -1,0 +1,57 @@
+{
+  "run_id": "branin_train_v1",
+  "split_path": "configs/family_splits/branin_split.json",
+  "base_function": "branin",
+  "subset": "train",
+  "n_tasks": 9,
+  "n_evals": 30,
+  "optimizer": "bo_scratch_multistart",
+  "output_root": "meta-bo-training/taf-gps",
+  "tasks": [
+    {
+      "task_name": "train_task_000",
+      "seed": 0,
+      "final_best": -0.4233393423118402
+    },
+    {
+      "task_name": "train_task_001",
+      "seed": 1,
+      "final_best": -0.4319208331544017
+    },
+    {
+      "task_name": "train_task_002",
+      "seed": 2,
+      "final_best": -0.3919646675460414
+    },
+    {
+      "task_name": "train_task_003",
+      "seed": 3,
+      "final_best": -0.40713834377903635
+    },
+    {
+      "task_name": "train_task_004",
+      "seed": 4,
+      "final_best": -2.0017107995148646
+    },
+    {
+      "task_name": "train_task_005",
+      "seed": 5,
+      "final_best": -0.4134135868948406
+    },
+    {
+      "task_name": "train_task_006",
+      "seed": 6,
+      "final_best": -0.39157046188707745
+    },
+    {
+      "task_name": "train_task_007",
+      "seed": 7,
+      "final_best": -0.36503865014832004
+    },
+    {
+      "task_name": "train_task_008",
+      "seed": 8,
+      "final_best": -0.40769739033653857
+    }
+  ]
+}

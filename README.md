@@ -4,7 +4,7 @@ OpenMetaBO is a research + teaching Python library for Bayesian optimization (BO
 
 ## Current scope
 
-This repository currently includes a first vertical slice:
+This repository currently includes:
 
 - synthetic test functions (`Branin`, `Sphere`, `Ackley`, `Rastrigin`, `Rosenbrock`, `Hartmann6`) in normalized input space `[0, 1]^d`
 - random search baseline
@@ -246,8 +246,6 @@ uv run python scripts/plot_family_results.py \
   --results-dir test_results
 ```
 
-## Meta-BO training and testing
-
 Create a persistent train/test split:
 
 ```bash
@@ -256,9 +254,6 @@ uv run python scripts/create_family_split.py \
   --n-tasks 50 \
   --train-ratio 0.8
 ```
-
-By default, the split is saved to:
-- `configs/family_splits/{base_function}_split.json`
 
 Run benchmark only on test tasks from the saved split:
 
@@ -301,6 +296,59 @@ uv run python scripts/plot_family_results.py \
   --test-id exp001_from_stored \
   --results-dir test_results
 ```
+
+## Meta-BO training and testing
+
+Generally meta-Bayesian optimization workflow follows these three steps:
+- Step 1: Generate a family of tasks using the same base function, and then split the training tasks and testing tasks.
+- Step 2: Train the optimizer with the training tasks.
+- Step 3: Test the optimizer's performance on test tasks. 
+
+
+### Transfer Acquisition Function (TAF) workflow
+
+Step 1: Create a persistent train/test split:
+
+```bash
+uv run python scripts/create_family_split.py \
+  --base-function branin \
+  --n-tasks 50 \
+  --train-ratio 0.8
+```
+
+By default, the split is saved to:
+- `configs/family_splits/{base_function}_split.json`
+
+Step 2: Training + GP prediction visualization
+
+Train TAF by running `bo_scratch_multistart` on the train subset and saving:
+- per-task trajectories (`trajectories/`)
+- final GP states (`gp_states/`)
+
+```bash
+uv run python scripts/train_taf.py \
+  --split-path configs/family_splits/branin_split.json \
+  --subset train \
+  --run-id branin_train_v1
+```
+
+This writes to:
+- `meta-bo-training/taf-gps/branin_train_v1/summary.json`
+- `meta-bo-training/taf-gps/branin_train_v1/trajectories/*.json`
+- `meta-bo-training/taf-gps/branin_train_v1/gp_states/*.json`
+
+Then visualize GP predictions as 2D heatmaps (mean/std):
+
+```bash
+MPLBACKEND=Agg uv run python scripts/plot_taf_gp_predictions.py \
+  --run-dir meta-bo-training/taf-gps/branin_train_v1
+```
+
+Heatmaps are saved under:
+- `meta-bo-training/taf-gps/branin_train_v1/gp_predictions/`
+
+Step 3: Testing .... 
+
 
 ## Results folder convention
 

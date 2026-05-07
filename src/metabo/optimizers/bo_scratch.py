@@ -65,6 +65,7 @@ class BORunResult:
     x_obs: NDArray[np.float64]
     y_obs: NDArray[np.float64]
     best_y_history: NDArray[np.float64]
+    final_gp_state: dict[str, object]
 
 
 def run_bo_scratch(
@@ -150,8 +151,26 @@ def run_bo_scratch(
         y_obs = np.concatenate([y_obs, y_next])
         best_y_history.append(float(np.max(y_obs)))
 
+    # Fit once more on full observations so returned GP state matches x_obs/y_obs.
+    gp.fit(x_obs, y_obs)
+    lengthscale_arr = np.asarray(gp.lengthscale, dtype=np.float64).reshape(-1)
+    final_gp_state: dict[str, object] = {
+        "kernel_type": gp.kernel_type,
+        "lengthscale": [float(v) for v in lengthscale_arr],
+        "variance": float(gp.variance),
+        "noise": float(gp.noise),
+        "standardize_targets": bool(gp.standardize_targets),
+        "optimize_hyperparameters": bool(gp.optimize_hyperparameters),
+        "optimize_noise": bool(gp.optimize_noise),
+        "y_mean": float(gp.y_mean),
+        "y_std": float(gp.y_std),
+        "n_observations": int(x_obs.shape[0]),
+        "dim": int(d),
+    }
+
     return BORunResult(
         x_obs=x_obs.astype(np.float64),
         y_obs=y_obs.astype(np.float64),
         best_y_history=np.asarray(best_y_history, dtype=np.float64),
+        final_gp_state=final_gp_state,
     )

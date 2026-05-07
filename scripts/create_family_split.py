@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import argparse
 
-from metabo.test_functions.families import (
+from openbo.test_functions.families import (
     generate_variants,
     save_family_split,
     split_variants,
 )
-from metabo.test_functions.tasks import TASK_DIMS
+from openbo.test_functions.tasks import TASK_DIMS
 
 
 def parse_args() -> argparse.Namespace:

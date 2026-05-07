@@ -1255,7 +1255,7 @@ wheels = [
 ]
 
 [[package]]
-name = "open-meta-bo"
+name = "open-bo"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

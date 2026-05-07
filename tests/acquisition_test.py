@@ -5,20 +5,20 @@ from __future__ import annotations
 import json
 import numpy as np
 
-from metabo.benchmarks.runner import run_simple_benchmark
-from metabo.acquisition.ei import expected_improvement_maximization
-from metabo.acquisition.taf import (
+from openbo.benchmarks.runner import run_simple_benchmark
+from openbo.acquisition.ei import expected_improvement_maximization
+from openbo.acquisition.taf import (
     SourceTaskSurrogate,
     compute_taf_m_weights,
     compute_taf_r_weights,
     epanechnikov_weight,
     taf_m_acquisition,
 )
-from metabo.models.gp_scratch import GPScratch
-from metabo.optimizers.bo_botorch import run_bo_botorch
-from metabo.optimizers.bo_scratch import run_bo_scratch
-from metabo.optimizers.bo_taf import run_bo_taf
-from metabo.test_functions.registry import get_function_spec
+from openbo.models.gp_scratch import GPScratch
+from openbo.optimizers.bo_botorch import run_bo_botorch
+from openbo.optimizers.bo_scratch import run_bo_scratch
+from openbo.optimizers.bo_taf import run_bo_taf
+from openbo.test_functions.registry import get_function_spec
 
 
 def test_scratch_ei_shape() -> None:

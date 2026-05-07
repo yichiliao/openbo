@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from metabo.test_functions.families import (
+from openbo.test_functions.families import (
     build_specs,
     generate_branin_variants,
     generate_variants,
@@ -15,12 +15,12 @@ from metabo.test_functions.families import (
     save_family_split,
     split_variants,
 )
-from metabo.test_functions.registry import (
+from openbo.test_functions.registry import (
     get_function_spec,
     make_branin_family,
     make_variant_function_spec,
 )
-from metabo.test_functions.synthetic import (
+from openbo.test_functions.synthetic import (
     ackley,
     branin,
     hartmann6,
@@ -28,7 +28,7 @@ from metabo.test_functions.synthetic import (
     rosenbrock,
     sphere,
 )
-from metabo.test_functions.tasks import TaskVariantSpec
+from openbo.test_functions.tasks import TaskVariantSpec
 
 
 def test_sphere_zero_is_zero() -> None:

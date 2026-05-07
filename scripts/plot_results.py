@@ -9,8 +9,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from metabo.benchmarks.runner import run_simple_benchmark
-from metabo.test_functions.registry import get_function_spec
+from openbo.benchmarks.runner import run_simple_benchmark
+from openbo.test_functions.registry import get_function_spec
 
 
 def parse_args() -> argparse.Namespace:

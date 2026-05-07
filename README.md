@@ -1,6 +1,6 @@
-# OpenMetaBO
+# OpenBO
 
-OpenMetaBO is a research + teaching Python library for Bayesian optimization (BO) and meta-BO.
+OpenBO is a research + teaching Python library for Bayesian optimization (BO) and meta-BO.
 
 ## Current scope
 
@@ -463,7 +463,7 @@ We thoroughly compared the performance of our BO, implemented from scratch (`bo_
   - `benchmark.yaml` - default benchmark config.
   - `methods/*.yaml` - method-level config placeholders.
   - `family_splits/*.json` - persisted train/test task-family splits.
-- `src/metabo/` - main package.
+- `src/openbo/` - main package (`import openbo`; the installable distribution name in `pyproject.toml` is `open-bo`, which `uv` maps to `openbo` via `[tool.uv.build-backend] module-name`).
   - `test_functions/synthetic.py` - synthetic objectives + optional Gaussian output noise and optimum capping.
   - `test_functions/transforms.py` - input transform helpers.
   - `test_functions/tasks.py` - task-variant spec + affine input/output wrappers (including variant-level noise/capping).

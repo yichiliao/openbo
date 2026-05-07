@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from metabo.models.gp_scratch import GPScratch
+from openbo.models.gp_scratch import GPScratch
 
 
 def test_gp_scratch_fit_stores_training_data() -> None:

@@ -8,8 +8,8 @@ from pathlib import Path
 
 import numpy as np
 
-from metabo.optimizers.bo_scratch import run_bo_scratch
-from metabo.test_functions.families import build_specs, load_family_split
+from openbo.optimizers.bo_scratch import run_bo_scratch
+from openbo.test_functions.families import build_specs, load_family_split
 
 
 def parse_args() -> argparse.Namespace:

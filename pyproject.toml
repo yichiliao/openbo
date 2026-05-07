@@ -1,7 +1,7 @@
 [project]
-name = "open-meta-bo"
+name = "open-bo"
 version = "0.1.0"
-description = "Research and teaching library for OpenMetaBO"
+description = "Research and teaching library for OpenBO"
 readme = "README.md"
 authors = [
     { name = "yichiliao", email = "imetliao@gmail.com" }
@@ -23,6 +23,9 @@ dependencies = [
 [build-system]
 requires = ["uv_build>=0.11.8,<0.12.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "openbo"
 
 [dependency-groups]
 dev = [

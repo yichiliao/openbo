@@ -10,13 +10,13 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from metabo.optimizers.bo_botorch import run_bo_botorch
-from metabo.optimizers.bo_scratch import run_bo_scratch
-from metabo.optimizers.bo_taf import run_bo_taf
-from metabo.optimizers.random_search import RandomSearch
-from metabo.test_functions.families import build_specs, generate_variants, load_family_split
-from metabo.test_functions.registry import FunctionSpec
-from metabo.test_functions.tasks import TASK_DIMS, TaskVariantSpec
+from openbo.optimizers.bo_botorch import run_bo_botorch
+from openbo.optimizers.bo_scratch import run_bo_scratch
+from openbo.optimizers.bo_taf import run_bo_taf
+from openbo.optimizers.random_search import RandomSearch
+from openbo.test_functions.families import build_specs, generate_variants, load_family_split
+from openbo.test_functions.registry import FunctionSpec
+from openbo.test_functions.tasks import TASK_DIMS, TaskVariantSpec
 
 METHOD_COLORS: dict[str, str] = {
     "random": "tab:gray",

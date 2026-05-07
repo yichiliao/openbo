@@ -9,7 +9,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from metabo.models.gp_scratch import GPScratch
+from openbo.models.gp_scratch import GPScratch
 
 
 def parse_args() -> argparse.Namespace:

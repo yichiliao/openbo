@@ -246,14 +246,19 @@ uv run python scripts/plot_family_results.py \
   --results-dir test_results
 ```
 
+## Meta-BO training and testing
+
 Create a persistent train/test split:
 
 ```bash
 uv run python scripts/create_family_split.py \
+  --base-function branin \
   --n-tasks 50 \
-  --train-ratio 0.8 \
-  --output configs/family_splits/branin_split.json
+  --train-ratio 0.8
 ```
+
+By default, the split is saved to:
+- `configs/family_splits/{base_function}_split.json`
 
 Run benchmark only on test tasks from the saved split:
 

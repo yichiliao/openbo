@@ -38,8 +38,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output",
-        default="configs/family_splits/branin_split.json",
-        help="Output JSON path for saved split.",
+        default=None,
+        help=(
+            "Output JSON path for saved split. "
+            "Default: configs/family_splits/{base_function}_split.json"
+        ),
     )
     return parser.parse_args()
 
@@ -47,6 +50,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     """Generate variants, split into train/test, and save."""
     args = parse_args()
+    output_path = (
+        args.output
+        if args.output is not None
+        else f"configs/family_splits/{args.base_function}_split.json"
+    )
     variants = generate_variants(
         base_name=args.base_function,
         n_tasks=args.n_tasks,
@@ -58,9 +66,9 @@ def main() -> None:
         train_ratio=args.train_ratio,
         seed=args.family_seed,
     )
-    save_family_split(split, args.output)
+    save_family_split(split, output_path)
     print(
-        f"saved_split={args.output} n_tasks={args.n_tasks} "
+        f"saved_split={output_path} n_tasks={args.n_tasks} "
         f"n_train={len(split.train_variants)} n_test={len(split.test_variants)}"
     )
 

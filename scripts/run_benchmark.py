@@ -24,6 +24,7 @@ def parse_args() -> argparse.Namespace:
             "bo_scratch",
             "bo_scratch_multistart",
             "bo_scratch_grid",
+            "bo_taf",
         ],
         default="random",
         help="Optimization method.",
@@ -67,6 +68,17 @@ def parse_args() -> argparse.Namespace:
         "--noisy",
         action="store_true",
         help="Use noisy objective outputs (noise_std=0.05, capped at optimum).",
+    )
+    parser.add_argument(
+        "--taf-run-dir",
+        default=None,
+        help="Path to TAF training run directory (required for method=bo_taf).",
+    )
+    parser.add_argument(
+        "--taf-rho",
+        type=float,
+        default=1.0,
+        help="Epanechnikov bandwidth rho for TAF-M weighting (bo_taf only).",
     )
     return parser.parse_args()
 
@@ -135,6 +147,8 @@ def main() -> None:
         n_iter=args.n_iter,
         noise_std=0.05 if args.noisy else 0.0,
         cap_at_optimum=args.noisy,
+        taf_run_dir=args.taf_run_dir,
+        taf_rho=args.taf_rho,
     )
     print(
         f"method={args.method} function={args.function} "
@@ -156,6 +170,8 @@ def main() -> None:
         "x_values": result.x_values,
         "y_values": result.y_values,
     }
+    if result.metadata is not None:
+        payload["metadata"] = result.metadata
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     print(f"saved_trajectory={output_path}")
 

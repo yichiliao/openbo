@@ -12,6 +12,7 @@
       ],
       "output_scale": 1.0626540478400546,
       "noise_std": 0.0,
+      "cap_at_optimum": false,
       "seed": 0
     },
     {
@@ -25,6 +26,7 @@
       ],
       "output_scale": 1.0459310892859888,
       "noise_std": 0.0,
+      "cap_at_optimum": false,
       "seed": 2
     },
     {
@@ -38,6 +40,7 @@
       ],
       "output_scale": 0.9845374442395317,
       "noise_std": 0.0,
+      "cap_at_optimum": false,
       "seed": 3
     },
     {
@@ -51,6 +54,7 @@
       ],
       "output_scale": 1.0230770222962509,
       "noise_std": 0.0,
+      "cap_at_optimum": false,
       "seed": 4
     },
     {
@@ -64,7 +68,64 @@
       ],
       "output_scale": 1.0300918552535634,
       "noise_std": 0.0,
+      "cap_at_optimum": false,
       "seed": 5
+    },
+    {
+      "input_shift": [
+        -0.018975812444104435,
+        -0.0014164641168210937
+      ],
+      "input_scale": [
+        1.0778975668698,
+        1.0868087031912501
+      ],
+      "output_scale": 0.9715590393418141,
+      "noise_std": 0.0,
+      "cap_at_optimum": false,
+      "seed": 7
+    },
+    {
+      "input_shift": [
+        0.028709830748868334,
+        -0.026063055700704787
+      ],
+      "input_scale": [
+        1.0752968461621408,
+        0.9117136069610389
+      ],
+      "output_scale": 0.9672234121091321,
+      "noise_std": 0.0,
+      "cap_at_optimum": false,
+      "seed": 10
+    },
+    {
+      "input_shift": [
+        -0.034972053310516095,
+        -0.004966063335071304
+      ],
+      "input_scale": [
+        1.059264854057459,
+        0.9461284417987496
+      ],
+      "output_scale": 0.9104042602128819,
+      "noise_std": 0.0,
+      "cap_at_optimum": false,
+      "seed": 11
+    },
+    {
+      "input_shift": [
+        0.012910815153970925,
+        0.04271545530678675
+      ],
+      "input_scale": [
+        0.9880754309431569,
+        1.0909180987381475
+      ],
+      "output_scale": 0.9999791627375294,
+      "noise_std": 0.0,
+      "cap_at_optimum": false,
+      "seed": 14
     }
   ],
   "test_variants": [
@@ -79,7 +140,78 @@
       ],
       "output_scale": 1.0870144847575538,
       "noise_std": 0.0,
+      "cap_at_optimum": false,
       "seed": 1
+    },
+    {
+      "input_shift": [
+        0.018844673057094002,
+        -0.01110785760208962
+      ],
+      "input_scale": [
+        0.9270193010044823,
+        1.0442976680388165
+      ],
+      "output_scale": 1.0050708644951452,
+      "noise_std": 0.0,
+      "cap_at_optimum": false,
+      "seed": 6
+    },
+    {
+      "input_shift": [
+        0.007152983072976092,
+        -0.017813060892405787
+      ],
+      "input_scale": [
+        1.0188600060399393,
+        0.9675822451014267
+      ],
+      "output_scale": 0.9783238001056322,
+      "noise_std": 0.0,
+      "cap_at_optimum": false,
+      "seed": 8
+    },
+    {
+      "input_shift": [
+        0.03902743520047923,
+        -0.02728424064666203
+      ],
+      "input_scale": [
+        1.0246374289372087,
+        0.916803068716477
+      ],
+      "output_scale": 1.0665288295306796,
+      "noise_std": 0.0,
+      "cap_at_optimum": false,
+      "seed": 9
+    },
+    {
+      "input_shift": [
+        -0.00954481601784718,
+        -0.03014869554907447
+      ],
+      "input_scale": [
+        0.9181506091238244,
+        1.0160664771973702
+      ],
+      "output_scale": 0.9597392265637845,
+      "noise_std": 0.0,
+      "cap_at_optimum": false,
+      "seed": 12
+    },
+    {
+      "input_shift": [
+        0.01719948779563593,
+        -0.030048455603178672
+      ],
+      "input_scale": [
+        1.0884226221012996,
+        0.9730220336489658
+      ],
+      "output_scale": 0.921099055914046,
+      "noise_std": 0.0,
+      "cap_at_optimum": false,
+      "seed": 13
     }
   ]
 }

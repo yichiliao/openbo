@@ -1,0 +1,25 @@
+{
+  "task_name": "train_task_001",
+  "base_function": "ackley",
+  "subset": "train",
+  "optimizer": "bo_scratch_multistart",
+  "n_init": 6,
+  "n_iter": 24,
+  "seed": 1,
+  "gp_state": {
+    "kernel_type": "matern52",
+    "lengthscale": [
+      0.1421867344152999,
+      0.1640560400106188
+    ],
+    "variance": 0.823451826835319,
+    "noise": 1e-06,
+    "standardize_targets": true,
+    "optimize_hyperparameters": true,
+    "optimize_noise": false,
+    "y_mean": -8.196734004454074,
+    "y_std": 3.7072481848258367,
+    "n_observations": 30,
+    "dim": 2
+  }
+}

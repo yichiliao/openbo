@@ -12,10 +12,11 @@ import numpy as np
 
 from metabo.optimizers.bo_botorch import run_bo_botorch
 from metabo.optimizers.bo_scratch import run_bo_scratch
+from metabo.optimizers.bo_taf import run_bo_taf
 from metabo.optimizers.random_search import RandomSearch
 from metabo.test_functions.families import build_specs, generate_variants, load_family_split
 from metabo.test_functions.registry import FunctionSpec
-from metabo.test_functions.tasks import TASK_DIMS
+from metabo.test_functions.tasks import TASK_DIMS, TaskVariantSpec
 
 METHOD_COLORS: dict[str, str] = {
     "random": "tab:gray",
@@ -23,6 +24,7 @@ METHOD_COLORS: dict[str, str] = {
     "bo_scratch_multistart": "tab:green",
     "bo_scratch_grid": "tab:orange",
     "bo_botorch": "tab:blue",
+    "bo_taf": "tab:purple",
 }
 
 
@@ -46,6 +48,7 @@ def parse_args() -> argparse.Namespace:
             "bo_scratch_multistart",
             "bo_scratch_grid",
             "bo_botorch",
+            "bo_taf",
         ],
         default=["random", "bo_scratch", "bo_botorch"],
         help="Methods to compare.",
@@ -66,6 +69,17 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=0,
         help="Base optimizer seed (task index is added to this).",
+    )
+    parser.add_argument(
+        "--taf-run-dir",
+        default=None,
+        help="Path to TAF training run directory (required when methods include bo_taf).",
+    )
+    parser.add_argument(
+        "--taf-rho",
+        type=float,
+        default=1.0,
+        help="Epanechnikov bandwidth rho for TAF-M weighting (bo_taf only).",
     )
     parser.add_argument(
         "--output",
@@ -117,7 +131,30 @@ def _bo_budget(n_evals: int) -> tuple[int, int]:
     return n_init, n_iter
 
 
-def _run_one_trajectory(spec: FunctionSpec, method: str, n_evals: int, seed: int) -> np.ndarray:
+def _variant_meta_features(variant: TaskVariantSpec) -> np.ndarray:
+    """Explicit variant meta-features for TAF-M weighting."""
+    return np.array(
+        [
+            *[float(v) for v in variant.input_shift],
+            *[float(v) for v in variant.input_scale],
+            float(variant.output_scale),
+            float(variant.noise_std),
+            float(1.0 if variant.cap_at_optimum else 0.0),
+        ],
+        dtype=np.float64,
+    )
+
+
+def _run_one_trajectory(
+    spec: FunctionSpec,
+    method: str,
+    n_evals: int,
+    seed: int,
+    taf_run_dir: str | None = None,
+    taf_rho: float = 1.0,
+    taf_source_meta: dict[str, np.ndarray] | None = None,
+    taf_target_meta: np.ndarray | None = None,
+) -> np.ndarray:
     """Run one task and return y-values at each iteration."""
     if method == "random":
         optimizer = RandomSearch(bounds=spec.bounds, seed=seed)
@@ -142,6 +179,23 @@ def _run_one_trajectory(spec: FunctionSpec, method: str, n_evals: int, seed: int
             bounds=spec.bounds,
             n_init=n_init,
             n_iter=n_iter,
+            seed=seed,
+        )
+        return result.y_obs.astype(np.float64)
+    if method == "bo_taf":
+        if taf_run_dir is None:
+            raise ValueError(
+                "taf_run_dir is required when methods include 'bo_taf'."
+            )
+        result = run_bo_taf(
+            objective=spec.objective,
+            bounds=spec.bounds,
+            taf_run_dir=taf_run_dir,
+            n_init=0,
+            n_iter=n_evals,
+            rho=taf_rho,
+            source_meta_features=taf_source_meta,
+            target_meta_features=taf_target_meta,
             seed=seed,
         )
         return result.y_obs.astype(np.float64)
@@ -240,6 +294,8 @@ def main() -> None:
     if args.trajectory_run_dir is None:
         noise_std = 0.05 if args.noisy else 0.0
         cap_at_optimum = bool(args.noisy)
+        source_meta_map: dict[str, np.ndarray] | None = None
+        eval_variants: list[TaskVariantSpec] | None = None
         if args.split_path is None:
             variants = generate_variants(
                 base_name=args.base_function,
@@ -253,6 +309,7 @@ def main() -> None:
                 variants=variants,
                 prefix=f"{args.base_function}_variant",
             )
+            eval_variants = variants
         else:
             split = load_family_split(args.split_path)
             if split.base_name != args.base_function:
@@ -275,12 +332,25 @@ def main() -> None:
 
             if args.subset == "train":
                 family = build_specs(split.base_name, chosen_variants, prefix="train_task")
+                eval_variants = chosen_variants
             elif args.subset == "test":
                 family = build_specs(split.base_name, chosen_variants, prefix="test_task")
+                eval_variants = chosen_variants
             else:
                 n_train = len(split.train_variants)
                 family = build_specs(split.base_name, chosen_variants[:n_train], prefix="train_task")
                 family += build_specs(split.base_name, chosen_variants[n_train:], prefix="test_task")
+                eval_variants = chosen_variants
+            source_meta_map = {
+                f"train_task_{idx:03d}": _variant_meta_features(variant)
+                for idx, variant in enumerate(split.train_variants)
+            }
+            source_meta_map.update(
+                {
+                    f"test_task_{idx:03d}": _variant_meta_features(variant)
+                    for idx, variant in enumerate(split.test_variants)
+                }
+            )
 
         method_to_y_mat: dict[str, np.ndarray] = {}
         method_to_best_mat: dict[str, np.ndarray] = {}
@@ -294,7 +364,21 @@ def main() -> None:
                         f"Task '{spec.name}' has unknown optimum; cannot compute log-regret."
                     )
                 seed = args.optimizer_seed + idx
-                y = _run_one_trajectory(spec, method, args.n_evals, seed)
+                target_meta = (
+                    _variant_meta_features(eval_variants[idx])
+                    if eval_variants is not None
+                    else None
+                )
+                y = _run_one_trajectory(
+                    spec,
+                    method,
+                    args.n_evals,
+                    seed,
+                    taf_run_dir=args.taf_run_dir,
+                    taf_rho=args.taf_rho,
+                    taf_source_meta=source_meta_map,
+                    taf_target_meta=target_meta,
+                )
                 y_best = np.maximum.accumulate(y)
                 raw_log_regret_trajectories.append(_to_log_regret(y, spec.optimum))
                 best_log_regret_trajectories.append(_to_log_regret(y_best, spec.optimum))

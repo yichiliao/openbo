@@ -18,6 +18,27 @@ This repository currently includes:
 
 ## Quickstart
 
+Set up the project environment first:
+
+```bash
+# Create/update .venv and install dependencies from uv.lock
+uv sync
+```
+
+Run commands in either of these ways:
+
+```bash
+# Option A (recommended): run directly via uv without manual activation
+uv run pytest
+uv run python scripts/run_benchmark.py --help
+
+# Option B: activate .venv, then run python/pytest normally
+source .venv/bin/activate
+python -m pytest
+```
+
+All commands in this README assume either `uv run ...` or an activated `.venv`.
+
 Run all tests:
 
 ```bash
@@ -312,7 +333,7 @@ Step 1: Create a persistent train/test split:
 ```bash
 uv run python scripts/create_family_split.py \
   --base-function branin \
-  --n-tasks 50 \
+  --n-tasks 15 \
   --train-ratio 0.8
 ```
 
@@ -340,7 +361,7 @@ This writes to:
 Then visualize GP predictions as 2D heatmaps (mean/std):
 
 ```bash
-MPLBACKEND=Agg uv run python scripts/plot_taf_gp_predictions.py \
+uv run python scripts/plot_taf_gp_predictions.py \
   --run-dir meta-bo-training/taf-gps/branin_train_v1
 ```
 

@@ -39,6 +39,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional limit on number of task plots.",
     )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=1024,
+        help="Number of grid points per posterior call (memory-safe batching).",
+    )
     return parser.parse_args()
 
 
@@ -51,6 +57,24 @@ def _make_grid(n: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     xx, yy = np.meshgrid(axis, axis, indexing="xy")
     x_grid = np.stack([xx.ravel(), yy.ravel()], axis=1).astype(np.float64)
     return xx, yy, x_grid
+
+
+def _posterior_batched(
+    gp: GPScratch,
+    x_grid: np.ndarray,
+    batch_size: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Evaluate posterior on large grids in memory-safe batches."""
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive.")
+    means: list[np.ndarray] = []
+    vars_: list[np.ndarray] = []
+    for start in range(0, x_grid.shape[0], batch_size):
+        stop = min(start + batch_size, x_grid.shape[0])
+        mean_b, var_b = gp.posterior(x_grid[start:stop])
+        means.append(np.asarray(mean_b, dtype=np.float64))
+        vars_.append(np.asarray(var_b, dtype=np.float64))
+    return np.concatenate(means, axis=0), np.concatenate(vars_, axis=0)
 
 
 def main() -> None:
@@ -106,7 +130,7 @@ def main() -> None:
             optimize_noise=bool(gp_state.get("optimize_noise", False)),
         )
         gp.fit(x_obs, y_obs)
-        mean, var = gp.posterior(x_grid)
+        mean, var = _posterior_batched(gp, x_grid, batch_size=args.batch_size)
         mean_img = mean.reshape(args.grid_size, args.grid_size)
         std_img = np.sqrt(np.maximum(var, 1e-12)).reshape(args.grid_size, args.grid_size)
 

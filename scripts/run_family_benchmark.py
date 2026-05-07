@@ -12,6 +12,7 @@ import numpy as np
 
 from metabo.optimizers.bo_botorch import run_bo_botorch
 from metabo.optimizers.bo_scratch import run_bo_scratch
+from metabo.optimizers.bo_taf import run_bo_taf
 from metabo.optimizers.random_search import RandomSearch
 from metabo.test_functions.families import (
     build_specs,
@@ -19,7 +20,7 @@ from metabo.test_functions.families import (
     load_family_split,
 )
 from metabo.test_functions.registry import FunctionSpec
-from metabo.test_functions.tasks import TASK_DIMS
+from metabo.test_functions.tasks import TASK_DIMS, TaskVariantSpec
 
 
 def parse_args() -> argparse.Namespace:
@@ -41,6 +42,7 @@ def parse_args() -> argparse.Namespace:
             "bo_scratch_multistart",
             "bo_scratch_grid",
             "bo_botorch",
+            "bo_taf",
         ],
         default="bo_scratch",
         help="Optimization method to evaluate.",
@@ -85,7 +87,32 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Enable noisy family tasks (noise_std=0.05, capped at optimum).",
     )
+    parser.add_argument(
+        "--taf-run-dir",
+        default=None,
+        help="Path to TAF training run directory (required for method=bo_taf).",
+    )
+    parser.add_argument(
+        "--taf-rho",
+        type=float,
+        default=1.0,
+        help="Epanechnikov bandwidth rho for TAF-M weighting (bo_taf only).",
+    )
     return parser.parse_args()
+
+
+def _variant_meta_features(variant: TaskVariantSpec) -> np.ndarray:
+    """Explicit variant meta-features for TAF-M weighting."""
+    return np.array(
+        [
+            *[float(v) for v in variant.input_shift],
+            *[float(v) for v in variant.input_scale],
+            float(variant.output_scale),
+            float(variant.noise_std),
+            float(1.0 if variant.cap_at_optimum else 0.0),
+        ],
+        dtype=np.float64,
+    )
 
 
 def _run_one_task(
@@ -93,6 +120,10 @@ def _run_one_task(
     method: str,
     n_evals: int,
     seed: int,
+    taf_run_dir: str | None = None,
+    taf_rho: float = 1.0,
+    taf_source_meta: dict[str, np.ndarray] | None = None,
+    taf_target_meta: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Run one method on one task and return observations `(x, y)`."""
     if method == "random":
@@ -120,6 +151,20 @@ def _run_one_task(
                 bounds=spec.bounds,
                 n_init=n_init,
                 n_iter=n_iter,
+                seed=seed,
+            )
+        elif method == "bo_taf":
+            if taf_run_dir is None:
+                raise ValueError("taf_run_dir is required when method='bo_taf'.")
+            result = run_bo_taf(
+                objective=spec.objective,
+                bounds=spec.bounds,
+                taf_run_dir=taf_run_dir,
+                n_init=0,
+                n_iter=n_evals,
+                rho=taf_rho,
+                source_meta_features=taf_source_meta,
+                target_meta_features=taf_target_meta,
                 seed=seed,
             )
         else:
@@ -157,6 +202,8 @@ def main() -> None:
     args = parse_args()
     noise_std = 0.05 if args.noisy else 0.0
     cap_at_optimum = bool(args.noisy)
+    source_meta_map: dict[str, np.ndarray] | None = None
+    eval_variants: list[TaskVariantSpec] | None = None
     if args.split_path is None:
         variants = generate_variants(
             base_name=args.base_function,
@@ -170,6 +217,7 @@ def main() -> None:
             variants=variants,
             prefix=f"{args.base_function}_variant",
         )
+        eval_variants = variants
     else:
         split = load_family_split(args.split_path)
         if split.base_name != args.base_function:
@@ -190,12 +238,25 @@ def main() -> None:
             ]
         if args.subset == "train":
             family = build_specs(split.base_name, chosen_variants, prefix="train_task")
+            eval_variants = chosen_variants
         elif args.subset == "test":
             family = build_specs(split.base_name, chosen_variants, prefix="test_task")
+            eval_variants = chosen_variants
         else:
             n_train = len(split.train_variants)
             family = build_specs(split.base_name, chosen_variants[:n_train], prefix="train_task")
             family += build_specs(split.base_name, chosen_variants[n_train:], prefix="test_task")
+            eval_variants = chosen_variants
+        source_meta_map = {
+            f"train_task_{idx:03d}": _variant_meta_features(variant)
+            for idx, variant in enumerate(split.train_variants)
+        }
+        source_meta_map.update(
+            {
+                f"test_task_{idx:03d}": _variant_meta_features(variant)
+                for idx, variant in enumerate(split.test_variants)
+            }
+        )
         print(
             f"loaded_split subset={args.subset} "
             f"n_tasks={len(family)} split_path={args.split_path}"
@@ -211,11 +272,20 @@ def main() -> None:
 
     for idx, spec in enumerate(family):
         task_seed = args.optimizer_seed + idx
+        target_meta = (
+            _variant_meta_features(eval_variants[idx])
+            if eval_variants is not None
+            else None
+        )
         x_values, y_values = _run_one_task(
             spec=spec,
             method=args.method,
             n_evals=args.n_evals,
             seed=task_seed,
+            taf_run_dir=args.taf_run_dir,
+            taf_rho=args.taf_rho,
+            taf_source_meta=source_meta_map,
+            taf_target_meta=target_meta,
         )
         final_best = float(np.max(y_values))
         final_bests.append(final_best)

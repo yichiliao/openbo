@@ -1,0 +1,57 @@
+{
+  "run_id": "ackley_train_v1",
+  "split_path": "configs/family_splits/ackley_split.json",
+  "base_function": "ackley",
+  "subset": "train",
+  "n_tasks": 9,
+  "n_evals": 30,
+  "optimizer": "bo_scratch_multistart",
+  "output_root": "meta-bo-training/taf-gps",
+  "tasks": [
+    {
+      "task_name": "train_task_000",
+      "seed": 0,
+      "final_best": -0.006904660388139937
+    },
+    {
+      "task_name": "train_task_001",
+      "seed": 1,
+      "final_best": -3.2601056929317647
+    },
+    {
+      "task_name": "train_task_002",
+      "seed": 2,
+      "final_best": -2.7753145974224944
+    },
+    {
+      "task_name": "train_task_003",
+      "seed": 3,
+      "final_best": -0.14563491680772736
+    },
+    {
+      "task_name": "train_task_004",
+      "seed": 4,
+      "final_best": -0.17370008776733128
+    },
+    {
+      "task_name": "train_task_005",
+      "seed": 5,
+      "final_best": -0.2532977674900164
+    },
+    {
+      "task_name": "train_task_006",
+      "seed": 6,
+      "final_best": -0.5598568744081652
+    },
+    {
+      "task_name": "train_task_007",
+      "seed": 7,
+      "final_best": -0.6589984706172384
+    },
+    {
+      "task_name": "train_task_008",
+      "seed": 8,
+      "final_best": -0.18118094397235643
+    }
+  ]
+}

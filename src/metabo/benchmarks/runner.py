@@ -8,6 +8,7 @@ import numpy as np
 
 from metabo.optimizers.bo_botorch import run_bo_botorch
 from metabo.optimizers.bo_scratch import run_bo_scratch
+from metabo.optimizers.bo_taf import run_bo_taf
 from metabo.optimizers.random_search import RandomSearch
 from metabo.test_functions.registry import get_function_spec
 
@@ -20,6 +21,7 @@ class BenchmarkResult:
     best_x: list[float]
     x_values: list[list[float]]
     y_values: list[float]
+    metadata: dict[str, object] | None = None
 
 
 def run_simple_benchmark(
@@ -31,6 +33,8 @@ def run_simple_benchmark(
     n_iter: int | None = None,
     noise_std: float = 0.0,
     cap_at_optimum: bool = False,
+    taf_run_dir: str | None = None,
+    taf_rho: float = 1.0,
 ) -> BenchmarkResult:
     """Run a minimal benchmark with random or BO methods."""
     if n_evals <= 0:
@@ -69,6 +73,7 @@ def run_simple_benchmark(
     objective = spec.objective
     bounds = spec.bounds
 
+    metadata: dict[str, object] | None = None
     if method == "random":
         optimizer = RandomSearch(bounds=bounds, seed=seed)
         x, y = optimizer.run(objective=objective, n_evals=n_evals)
@@ -96,6 +101,25 @@ def run_simple_benchmark(
             seed=seed,
         )
         x, y = result.x_obs, result.y_obs
+    elif method == "bo_taf":
+        if taf_run_dir is None:
+            raise ValueError("taf_run_dir is required when method='bo_taf'.")
+        resolved_n_iter = n_evals if n_iter is None else n_iter
+        result = run_bo_taf(
+            objective=objective,
+            bounds=bounds,
+            taf_run_dir=taf_run_dir,
+            n_init=0,
+            n_iter=resolved_n_iter,
+            rho=taf_rho,
+            seed=seed,
+        )
+        x, y = result.x_obs, result.y_obs
+        metadata = {
+            "taf_acquisition_trace": result.final_gp_state.get("taf_acquisition_trace", []),
+            "taf_rho": result.final_gp_state.get("taf_rho"),
+            "n_sources": result.final_gp_state.get("n_sources"),
+        }
     else:
         raise ValueError(f"Unknown method: {method}")
 
@@ -105,4 +129,5 @@ def run_simple_benchmark(
         best_x=[float(v) for v in x[best_idx]],
         x_values=[[float(v) for v in row] for row in x],
         y_values=[float(v) for v in y],
+        metadata=metadata,
     )

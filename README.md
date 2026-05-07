@@ -323,10 +323,10 @@ Practical workflow convention:
 ## Important benchmark results
 
 We thoroughly compared the performance of our BO, implemented from scratch (`bo_scratch_grid` and `bo_scratch_multistart`), against BoTorch implementation (`bo_botorch`) on low-dimensional test functions. The results are stored in: 
-- Main folder: `benchmark_results/benchmark_scratch_botorch`
-  - Benchmark our BO with BoTorch BO in functions without Gaussian noises in the output: `/benchmark_BO_BoTorch_no_noise` 
-  - Benchmark our BO with BoTorch BO in functions with Gaussian noises in the output: `/benchmark_BO_BoTorch_with_noise` 
-  - Detailed comparisons of the search behavior of different methods in these test functions: `/visual_search_behaviors_with_noise`
+- `benchmark_results/benchmark_scratch_botorch`
+  - `/benchmark_BO_BoTorch_no_noise`: Benchmark our BO with BoTorch BO in functions without Gaussian noises in the output
+  - `/benchmark_BO_BoTorch_with_noise`: Benchmark our BO with BoTorch BO in functions with Gaussian noises in the output
+  - `/visual_search_behaviors_with_noise`: Detailed comparisons of the search behavior of different methods in these test functions
 
 
 ## Project structure

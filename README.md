@@ -54,12 +54,16 @@ Available methods:
 - `bo_scratch_grid`
 - `bo_scratch_multistart`
 - `bo_botorch`
+- `bo_taf_m` (TAF with meta-feature similarity weights)
+- `bo_taf_r` (TAF with ranking-agreement weights)
 
 ```bash
 uv run python scripts/run_benchmark.py --method random
 uv run python scripts/run_benchmark.py --method bo_scratch_grid
 uv run python scripts/run_benchmark.py --method bo_scratch_multistart
 uv run python scripts/run_benchmark.py --method bo_botorch
+uv run python scripts/run_benchmark.py --method bo_taf_m --taf-run-dir meta-bo-training/taf-gps/branin_train_v1
+uv run python scripts/run_benchmark.py --method bo_taf_r --taf-run-dir meta-bo-training/taf-gps/branin_train_v1
 ```
 
 ### Noise-free vs noisy objectives
@@ -368,7 +372,60 @@ uv run python scripts/plot_taf_gp_predictions.py \
 Heatmaps are saved under:
 - `meta-bo-training/taf-gps/branin_train_v1/gp_predictions/`
 
-Step 3: Testing .... 
+Step 3: Testing 
+
+You can now evaluate TAF as separate high-level methods:
+- `bo_taf_m`: TAF-M weights from meta-feature similarity.
+- `bo_taf_r`: TAF-R weights from ranking agreement on observed target points.
+
+Single-function TAF evaluation:
+
+```bash
+uv run python scripts/run_benchmark.py \
+  --method bo_taf_m \
+  --function branin \
+  --taf-run-dir meta-bo-training/taf-gps/branin_train_v1 \
+  --test-id taf_m_single
+
+uv run python scripts/run_benchmark.py \
+  --method bo_taf_r \
+  --function branin \
+  --taf-run-dir meta-bo-training/taf-gps/branin_train_v1 \
+  --test-id taf_r_single
+```
+
+Family benchmark evaluation on split test tasks:
+
+```bash
+uv run python scripts/run_family_benchmark.py \
+  --method bo_taf_m \
+  --split-path configs/family_splits/branin_split.json \
+  --subset test \
+  --taf-run-dir meta-bo-training/taf-gps/branin_train_v1 \
+  --test-id taf_m_family
+
+uv run python scripts/run_family_benchmark.py \
+  --method bo_taf_r \
+  --split-path configs/family_splits/branin_split.json \
+  --subset test \
+  --taf-run-dir meta-bo-training/taf-gps/branin_train_v1 \
+  --test-id taf_r_family
+```
+
+Family plotting comparison:
+
+```bash
+uv run python scripts/plot_family_results.py \
+  --methods bo_taf_m bo_taf_r \
+  --split-path configs/family_splits/branin_split.json \
+  --subset test \
+  --taf-run-dir meta-bo-training/taf-gps/branin_train_v1 \
+  --test-id taf_compare_family
+```
+
+Notes:
+- Backward-compatible `bo_taf` still works and uses `--taf-weight-mode`.
+- `bo_taf_m` / `bo_taf_r` are recommended for cleaner benchmark tracking.
 
 
 ## Results folder convention
@@ -425,11 +482,13 @@ We thoroughly compared the performance of our BO, implemented from scratch (`bo_
   - `benchmarks/seeds.py` - reproducibility helpers.
   - `benchmarks/metrics.py`, `benchmarks/plotting.py` - placeholder benchmark utilities.
 - `scripts/` - command-line entrypoints.
-  - `run_benchmark.py` - run one method on one function; supports `--noisy` and optional 2D x-location plotting.
-  - `plot_results.py` - single-function multi-method comparison plots (rerun or from stored trajectories), with optional `--noisy` rerun mode.
+  - `run_benchmark.py` - run one method on one function; supports `--noisy`, optional 2D x-location plotting, and TAF methods (`bo_taf_m`, `bo_taf_r`).
+  - `plot_results.py` - single-function multi-method comparison plots (rerun or from stored trajectories), with optional `--noisy` rerun mode and TAF methods.
   - `create_family_split.py` - create and save train/test split for a task family.
-  - `run_family_benchmark.py` - run one method across family tasks and save per-task trajectories; supports `--noisy`.
-  - `plot_family_results.py` - family mean/std and best-so-far plots across methods (rerun or from stored trajectories); supports `--noisy` in rerun mode.
+  - `run_family_benchmark.py` - run one method across family tasks and save per-task trajectories; supports `--noisy`, TAF methods, and multi-mode TAF runs.
+  - `plot_family_results.py` - family mean/std and best-so-far plots across methods (rerun or from stored trajectories); supports `--noisy` in rerun mode and TAF methods.
+  - `plot_taf_gp_predictions.py` - render 2D GP mean/std heatmaps from saved TAF source-task GP states and trajectories.
+  - `plot_taf_acquisition_heatmap.py` - visualize stored TAF acquisition query values and zero-mask behavior per iteration.
   - `aggregate_results.py` - placeholder aggregation script.
 - `tests/` - test suite.
   - `test_functions_test.py` - synthetic functions, variants, and family split persistence tests.

@@ -1,0 +1,13 @@
+# Branin-first default config.
+# In OpenBO we maximize a flipped Branin objective: y = -Branin(x).
+# On normalized [0,1]^2 this typically stays in a negative range,
+# with best known value near -0.3979.
+optimizer: bo_botorch
+input_dim: 2
+y_range: [-350.0, 1.0]
+
+# Optional defaults used when start message omits fields.
+n_init_default: 2
+n_iter_default: 8
+num_restarts_default: 5
+raw_samples_default: 64

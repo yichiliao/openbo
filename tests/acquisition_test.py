@@ -20,7 +20,11 @@ from openbo.optimizers.bo_botorch import (
     BoTorchSequentialOptimizer,
     run_bo_botorch,
 )
-from openbo.optimizers.bo_scratch import run_bo_scratch
+from openbo.optimizers.bo_scratch import (
+    ScratchConfig,
+    ScratchSequentialOptimizer,
+    run_bo_scratch,
+)
 from openbo.optimizers.bo_taf import run_bo_taf
 from openbo.test_functions.registry import get_function_spec
 
@@ -57,6 +61,27 @@ def test_scratch_bo_runs_small_loop_with_matern52() -> None:
     assert result.x_obs.shape == (5, 2)
     assert result.y_obs.shape == (5,)
     assert result.best_y_history.shape == (3,)
+
+
+def test_scratch_sequential_optimizer_ask_tell() -> None:
+    """Scratch sequential optimizer should support ask/tell style updates."""
+    spec = get_function_spec("branin")
+    optimizer = ScratchSequentialOptimizer(
+        ScratchConfig(bounds=spec.bounds, n_init=3, search_strategy="multistart", seed=0)
+    )
+    optimizer.bootstrap(spec.objective)
+    assert optimizer.x_obs.shape == (3, 2)
+    assert optimizer.y_obs.shape == (3,)
+
+    x_next = optimizer.suggest()
+    assert x_next.shape == (1, 2)
+    y_next = np.asarray(spec.objective(x_next), dtype=np.float64)
+    optimizer.observe(x_next, y_next)
+
+    result = optimizer.result()
+    assert result.x_obs.shape == (4, 2)
+    assert result.y_obs.shape == (4,)
+    assert result.best_y_history.shape == (2,)
 
 
 def test_botorch_bo_runs_small_loop() -> None:

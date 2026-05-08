@@ -1,22 +1,31 @@
-"""Tests for BoTorch websocket-session optimizer logic."""
+"""Tests for generic websocket-session optimizer logic."""
 
 from __future__ import annotations
 
 import numpy as np
 
-from openbo.server_optimizers.bo_botorch_server import BoTorchServerSession
+from openbo.server_optimizers.bo_server import (
+    BOServerRuntimeConfig,
+    BOServerSession,
+)
 
 
-def test_botorch_server_session_runs_to_done() -> None:
+def test_server_session_runs_to_done_botorch() -> None:
     """Session should progress start -> suggest/observe -> done."""
-    session = BoTorchServerSession.from_start_message(
+    runtime = BOServerRuntimeConfig(
+        optimizer="bo_botorch",
+        input_dim=2,
+        y_min=-100.0,
+        y_max=100.0,
+    )
+    session = BOServerSession.from_start_message(
         {
             "type": "start",
-            "bounds": [[0.0, 1.0], [0.0, 1.0]],
             "n_init": 2,
             "n_iter": 2,
             "seed": 0,
-        }
+        },
+        runtime_config=runtime,
     )
 
     msg = session.handle({"type": "suggest"})
@@ -40,3 +49,82 @@ def test_botorch_server_session_runs_to_done() -> None:
     assert msg["total_observations"] == 4
     assert len(msg["x_values"]) == 4
     assert len(msg["y_values"]) == 4
+
+
+def test_server_session_stop_message() -> None:
+    """Client should be able to stop an in-progress session."""
+    runtime = BOServerRuntimeConfig(
+        optimizer="bo_botorch",
+        input_dim=2,
+        y_min=-100.0,
+        y_max=100.0,
+    )
+    session = BOServerSession.from_start_message(
+        {
+            "type": "start",
+            "n_init": 2,
+            "n_iter": 5,
+            "seed": 0,
+        },
+        runtime_config=runtime,
+    )
+    suggest = session.handle({"type": "suggest"})
+    assert suggest["type"] == "suggest"
+    stopped = session.handle({"type": "stop", "reason": "user_cancelled"})
+    assert stopped["type"] == "stopped"
+    assert stopped["reason"] == "user_cancelled"
+    assert "x_values" in stopped
+    assert "y_values" in stopped
+
+
+def test_server_session_observe_checks_y_range() -> None:
+    """Observe should reject y outside configured server y-range."""
+    runtime = BOServerRuntimeConfig(
+        optimizer="bo_botorch",
+        input_dim=2,
+        y_min=-1.0,
+        y_max=1.0,
+    )
+    session = BOServerSession.from_start_message(
+        {
+            "type": "start",
+            "n_init": 1,
+            "n_iter": 0,
+            "seed": 0,
+        },
+        runtime_config=runtime,
+    )
+    suggest = session.handle({"type": "suggest"})
+    assert suggest["type"] == "suggest"
+    try:
+        session.handle({"type": "observe", "x": suggest["x"], "y": 10.0})
+    except ValueError as exc:
+        assert "outside configured y_range" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for out-of-range y.")
+
+
+def test_server_session_runs_to_done_scratch() -> None:
+    """Session should also run to done with scratch backend."""
+    runtime = BOServerRuntimeConfig(
+        optimizer="bo_scratch",
+        input_dim=2,
+        y_min=-100.0,
+        y_max=100.0,
+    )
+    session = BOServerSession.from_start_message(
+        {
+            "type": "start",
+            "n_init": 2,
+            "n_iter": 2,
+            "seed": 0,
+        },
+        runtime_config=runtime,
+    )
+    msg = session.handle({"type": "suggest"})
+    while msg["type"] != "done":
+        x = np.asarray(msg["x"], dtype=np.float64)
+        y = float(-(np.sum((x - 0.2) ** 2)))
+        msg = session.handle({"type": "observe", "x": msg["x"], "y": y})
+    assert msg["type"] == "done"
+    assert msg["optimizer"] == "bo_scratch"

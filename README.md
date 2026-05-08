@@ -461,13 +461,62 @@ OpenBO supports a server-style optimization loop for external applications
 that evaluate candidate designs outside this Python process.
 
 Current server implementation:
-- `bo_botorch` via WebSocket (`server_scripts/run_botorch_server.py`)
+- Generic BO server via WebSocket (`server_scripts/run_botorch_server.py`)
+- Supported backends: `bo_botorch`, `bo_scratch`
 
 ### 1) Start the optimizer server
 
+Use one of the two backend-specific config files you created:
+- `configs/server_optimizers/bo_server_botorch.yaml`
+- `configs/server_optimizers/bo_server_scratch.yaml`
+
+Start server with BoTorch backend:
+
 ```bash
-uv run python server_scripts/run_botorch_server.py --host 127.0.0.1 --port 8765
+uv run python server_scripts/run_botorch_server.py \
+  --host 127.0.0.1 \
+  --port 8765 \
+  --config-path configs/server_optimizers/bo_server_botorch.yaml
 ```
+
+Start server with scratch backend:
+
+```bash
+uv run python server_scripts/run_botorch_server.py \
+  --host 127.0.0.1 \
+  --port 8765 \
+  --config-path configs/server_optimizers/bo_server_scratch.yaml
+```
+
+The server reads the config file at session start.
+Example BoTorch config:
+
+```yaml
+optimizer: bo_botorch
+input_dim: 2
+y_range: [-350.0, 1.0]
+n_init_default: 2
+n_iter_default: 8
+num_restarts_default: 5
+raw_samples_default: 64
+```
+
+Example scratch config:
+
+```yaml
+optimizer: bo_scratch
+input_dim: 2
+y_range: [-350.0, 1.0]
+n_init_default: 2
+n_iter_default: 8
+```
+
+Assumptions for server optimization:
+- input is normalized to `[0, 1]^d`
+- optimization is **maximization**
+- you must set `input_dim` and `y_range` in the config file for your application
+- current default config is Branin-oriented (`y = -Branin(x)`), so `y_range` is set for flipped Branin scale
+- choose backend with `optimizer: bo_botorch` or `optimizer: bo_scratch`
 
 ### 2) WebSocket message protocol (JSON)
 
@@ -476,6 +525,7 @@ Client -> Server:
 - `suggest`: ask for the next design (optional after `start`, since server auto-sends first suggestion)
 - `observe`: return evaluation result for the latest suggested design
 - `status`: get current progress
+- `stop`: stop current session early and return partial results
 
 Server -> Client:
 - `suggest`: next design vector `x`
@@ -488,7 +538,6 @@ Server -> Client:
 ```json
 {
   "type": "start",
-  "bounds": [[0.0, 1.0], [0.0, 1.0]],
   "n_init": 5,
   "n_iter": 25,
   "seed": 0,
@@ -507,6 +556,15 @@ Server -> Client:
 }
 ```
 
+`stop` payload example:
+
+```json
+{
+  "type": "stop",
+  "reason": "user_cancelled"
+}
+```
+
 ### 3) Minimal client loop (Python)
 
 ```python
@@ -522,7 +580,6 @@ async def main():
     async with websockets.connect("ws://127.0.0.1:8765") as ws:
         await ws.send(json.dumps({
             "type": "start",
-            "bounds": [[0.0, 1.0], [0.0, 1.0]],
             "n_init": 2,
             "n_iter": 8,
             "seed": 0
@@ -547,6 +604,8 @@ Notes:
 - One WebSocket connection corresponds to one session.
 - The server enforces ask/tell order (`suggest` then `observe`).
 - `done` includes `x_values`, `y_values`, and `best_y_history` for logging/debugging.
+- `stop` returns a `stopped` payload with partial trajectory and best-so-far values.
+- `observe.y` must stay within configured `y_range`.
 
 ### 4) Run provided fake Branin client
 
@@ -568,6 +627,35 @@ uv run python server_scripts/run_botorch_fake_client.py \
   --save-json test_results/trajectories/fake_client_done.json
 ```
 
+### 5) Server notes and troubleshooting
+
+Server config precedence:
+- `input_dim` and `y_range` are read from `--config-path` YAML at session start.
+- The `start` message does not set bounds/dimension in server mode.
+- Bounds are internally assumed as normalized `[0, 1]^d` using configured `input_dim`.
+
+Stop semantics:
+- `{"type":"stop"}` stops only the current optimization session.
+- The server process stays alive and can accept new client sessions.
+
+`y_range` validation:
+- If client sends `observe.y` outside configured `y_range`, server replies with:
+  - `{"type":"error","message":"...outside configured y_range..."}`
+
+Expected happy-path:
+- Start server and run fake client.
+- You should see client logs ending with terminal `type=done`
+  (or `type=stopped` if you explicitly stop).
+
+Troubleshooting:
+- **Port in use**: change `--port` when starting server.
+- **Dimension mismatch**: update `input_dim` in config to match your application input size.
+- **Frequent y-range errors**: widen `y_range` in config to include your observed objective scale.
+
+Architecture note:
+- `openbo.optimizers.bo_botorch` and `openbo.optimizers.bo_scratch` now provide ask/tell-style sequential optimizer classes.
+- This is groundwork for a single future `bo_server` that can route multiple optimizer backends.
+
 
 ## Project structure
 
@@ -577,6 +665,7 @@ uv run python server_scripts/run_botorch_fake_client.py \
   - `benchmark.yaml` - default benchmark config.
   - `methods/*.yaml` - method-level config placeholders.
   - `family_splits/*.json` - persisted train/test task-family splits.
+  - `server_optimizers/*.yaml` - server runtime configs (e.g. input dimension and y-range constraints).
 - `src/openbo/` - main package (`import openbo`; the installable distribution name in `pyproject.toml` is `open-bo`, which `uv` maps to `openbo` via `[tool.uv.build-backend] module-name`).
   - `test_functions/synthetic.py` - synthetic objectives + optional Gaussian output noise and optimum capping.
   - `test_functions/transforms.py` - input transform helpers.
@@ -591,7 +680,7 @@ uv run python server_scripts/run_botorch_fake_client.py \
   - `optimizers/random_search.py` - random-search baseline.
   - `optimizers/bo_scratch.py` - scratch BO loop (Sobol candidate scans + multistart L-BFGS-B EI maximization).
   - `optimizers/bo_botorch.py` - BoTorch BO loop (`SingleTaskGP` + `LogExpectedImprovement`).
-  - `server_optimizers/bo_botorch_server.py` - WebSocket server adapter for BoTorch ask/tell optimization.
+  - `server_optimizers/bo_server.py` - generic WebSocket server adapter for ask/tell optimization backends (`bo_botorch` and `bo_scratch`).
   - `optimizers/taf.py`, `optimizers/conbo.py`, `optimizers/naf.py`, `optimizers/pbo.py`, `optimizers/taf_pbo.py` - placeholder optimizer modules.
   - `benchmarks/runner.py` - single-function benchmark runner used by CLI scripts.
   - `benchmarks/seeds.py` - reproducibility helpers.
@@ -606,7 +695,7 @@ uv run python server_scripts/run_botorch_fake_client.py \
   - `plot_taf_acquisition_heatmap.py` - visualize stored TAF acquisition query values and zero-mask behavior per iteration.
   - `aggregate_results.py` - placeholder aggregation script.
 - `server_scripts/` - server-oriented command-line entrypoints.
-  - `run_botorch_server.py` - run WebSocket server for external ask/tell optimization with `bo_botorch`.
+  - `run_botorch_server.py` - run generic WebSocket server for external ask/tell optimization (`bo_botorch` or `bo_scratch` via config/start message).
   - `run_botorch_fake_client.py` - fake Branin client that exercises the server suggest/observe loop.
 - `tests/` - test suite.
   - `test_functions_test.py` - synthetic functions, variants, and family split persistence tests.

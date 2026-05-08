@@ -1,4 +1,4 @@
-"""Fake client for OpenBO BoTorch websocket server using Branin evaluations."""
+"""Fake client for OpenBO websocket server using Branin evaluations."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from openbo.test_functions.registry import get_function_spec
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Run a fake Branin client against the BoTorch websocket server."
+        description="Run a fake Branin client against the websocket server."
     )
     parser.add_argument("--uri", default="ws://127.0.0.1:8765", help="Server websocket URI.")
     parser.add_argument(

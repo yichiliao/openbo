@@ -25,7 +25,7 @@ from openbo.optimizers.bo_scratch import (
     ScratchSequentialOptimizer,
     run_bo_scratch,
 )
-from openbo.optimizers.bo_taf import run_bo_taf
+from openbo.optimizers.bo_taf import TAFConfig, TAFSequentialOptimizer, run_bo_taf
 from openbo.test_functions.registry import get_function_spec
 
 
@@ -232,6 +232,71 @@ def test_bo_taf_runs_small_loop(tmp_path) -> None:
         target_meta_features=np.array([0.1, 0.2, 0.3]),
         seed=0,
     )
+    assert result.x_obs.shape == (2, 2)
+    assert result.y_obs.shape == (2,)
+    assert result.best_y_history.shape == (2,)
+
+
+def test_taf_sequential_optimizer_ask_tell(tmp_path) -> None:
+    """TAF sequential optimizer should support ask/tell style updates."""
+    run_dir = tmp_path / "taf_run"
+    gp_states_dir = run_dir / "gp_states"
+    trajectories_dir = run_dir / "trajectories"
+    gp_states_dir.mkdir(parents=True, exist_ok=True)
+    trajectories_dir.mkdir(parents=True, exist_ok=True)
+
+    x = np.array([[0.1, 0.1], [0.6, 0.4], [0.9, 0.8]], dtype=np.float64)
+    y = np.array([-1.0, 0.3, 0.2], dtype=np.float64)
+    gp = GPScratch(optimize_hyperparameters=False)
+    gp.fit(x, y)
+    lengthscale = np.asarray(gp.lengthscale, dtype=np.float64).reshape(-1)
+
+    (trajectories_dir / "train_task_000.json").write_text(
+        json.dumps(
+            {
+                "task_name": "train_task_000",
+                "x_values": [[float(v) for v in row] for row in x],
+                "y_values": [float(v) for v in y],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (gp_states_dir / "train_task_000.json").write_text(
+        json.dumps(
+            {
+                "task_name": "train_task_000",
+                "gp_state": {
+                    "kernel_type": gp.kernel_type,
+                    "lengthscale": [float(v) for v in lengthscale],
+                    "variance": float(gp.variance),
+                    "noise": float(gp.noise),
+                    "standardize_targets": bool(gp.standardize_targets),
+                    "optimize_noise": bool(gp.optimize_noise),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    spec = get_function_spec("branin")
+    optimizer = TAFSequentialOptimizer(
+        TAFConfig(
+            bounds=spec.bounds,
+            taf_run_dir=run_dir,
+            n_init=0,
+            n_iter=2,
+            source_meta_features={"train_task_000": np.array([0.1, 0.2, 0.3])},
+            target_meta_features=np.array([0.1, 0.2, 0.3]),
+            seed=0,
+        )
+    )
+    x_next = optimizer.suggest()
+    y_next = np.asarray(spec.objective(x_next), dtype=np.float64)
+    optimizer.observe(x_next, y_next)
+    x_next2 = optimizer.suggest()
+    y_next2 = np.asarray(spec.objective(x_next2), dtype=np.float64)
+    optimizer.observe(x_next2, y_next2)
+    result = optimizer.result()
     assert result.x_obs.shape == (2, 2)
     assert result.y_obs.shape == (2,)
     assert result.best_y_history.shape == (2,)

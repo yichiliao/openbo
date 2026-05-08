@@ -461,19 +461,21 @@ OpenBO supports a server-style optimization loop for external applications
 that evaluate candidate designs outside this Python process.
 
 Current server implementation:
-- Generic BO server via WebSocket (`server_scripts/run_botorch_server.py`)
-- Supported backends: `bo_botorch`, `bo_scratch`
+- Generic BO server via WebSocket (`server_scripts/run_bo_server.py`)
+- Supported backends in generic server: `bo_botorch`, `bo_scratch`
+- Dedicated TAF server via WebSocket (`server_scripts/run_taf_server.py`)
 
 ### 1) Start the optimizer server
 
-Use one of the two backend-specific config files you created:
+Use one of the backend-specific config files:
 - `configs/server_optimizers/bo_server_botorch.yaml`
 - `configs/server_optimizers/bo_server_scratch.yaml`
+- `configs/server_optimizers/bo_taf_server.yaml`
 
 Start server with BoTorch backend:
 
 ```bash
-uv run python server_scripts/run_botorch_server.py \
+uv run python server_scripts/run_bo_server.py \
   --host 127.0.0.1 \
   --port 8765 \
   --config-path configs/server_optimizers/bo_server_botorch.yaml
@@ -482,10 +484,19 @@ uv run python server_scripts/run_botorch_server.py \
 Start server with scratch backend:
 
 ```bash
-uv run python server_scripts/run_botorch_server.py \
+uv run python server_scripts/run_bo_server.py \
   --host 127.0.0.1 \
   --port 8765 \
   --config-path configs/server_optimizers/bo_server_scratch.yaml
+```
+
+Start dedicated TAF server:
+
+```bash
+uv run python server_scripts/run_taf_server.py \
+  --host 127.0.0.1 \
+  --port 8766 \
+  --config-path configs/server_optimizers/bo_taf_server.yaml
 ```
 
 The server reads the config file at session start.
@@ -511,12 +522,25 @@ n_init_default: 2
 n_iter_default: 8
 ```
 
+Example TAF config:
+
+```yaml
+input_dim: 2
+y_range: [-350.0, 1.0]
+taf_run_dir: meta-bo-training/taf-gps/branin_train_v1
+taf_weight_mode_default: taf_m  # or taf_r
+taf_rho_default: 1.0
+n_init_default: 0
+n_iter_default: 8
+```
+
 Assumptions for server optimization:
 - input is normalized to `[0, 1]^d`
 - optimization is **maximization**
 - you must set `input_dim` and `y_range` in the config file for your application
 - current default config is Branin-oriented (`y = -Branin(x)`), so `y_range` is set for flipped Branin scale
-- choose backend with `optimizer: bo_botorch` or `optimizer: bo_scratch`
+- choose backend with `optimizer: bo_botorch` or `bo_scratch` for the generic server
+- use dedicated TAF server for `bo_taf` and set `taf_run_dir` in config
 
 ### 2) WebSocket message protocol (JSON)
 
@@ -613,13 +637,13 @@ OpenBO includes a ready-to-run fake client that acts like an external applicatio
 and evaluates server-suggested points on Branin:
 
 ```bash
-uv run python server_scripts/run_botorch_fake_client.py --uri ws://127.0.0.1:8765
+uv run python server_scripts/run_fake_client.py --uri ws://127.0.0.1:8765
 ```
 
 Useful options:
 
 ```bash
-uv run python server_scripts/run_botorch_fake_client.py \
+uv run python server_scripts/run_fake_client.py \
   --uri ws://127.0.0.1:8765 \
   --n-init 2 \
   --n-iter 8 \
@@ -653,8 +677,8 @@ Troubleshooting:
 - **Frequent y-range errors**: widen `y_range` in config to include your observed objective scale.
 
 Architecture note:
-- `openbo.optimizers.bo_botorch` and `openbo.optimizers.bo_scratch` now provide ask/tell-style sequential optimizer classes.
-- This is groundwork for a single future `bo_server` that can route multiple optimizer backends.
+- `openbo.optimizers.bo_botorch` and `openbo.optimizers.bo_scratch` are served by `server_optimizers/bo_server.py`.
+- `openbo.optimizers.bo_taf` is served by `server_optimizers/bo_taf_server.py` to keep TAF-specific config isolated.
 
 
 ## Project structure
@@ -681,6 +705,7 @@ Architecture note:
   - `optimizers/bo_scratch.py` - scratch BO loop (Sobol candidate scans + multistart L-BFGS-B EI maximization).
   - `optimizers/bo_botorch.py` - BoTorch BO loop (`SingleTaskGP` + `LogExpectedImprovement`).
   - `server_optimizers/bo_server.py` - generic WebSocket server adapter for ask/tell optimization backends (`bo_botorch` and `bo_scratch`).
+  - `server_optimizers/bo_taf_server.py` - dedicated WebSocket server adapter for TAF ask/tell optimization (`bo_taf`).
   - `optimizers/taf.py`, `optimizers/conbo.py`, `optimizers/naf.py`, `optimizers/pbo.py`, `optimizers/taf_pbo.py` - placeholder optimizer modules.
   - `benchmarks/runner.py` - single-function benchmark runner used by CLI scripts.
   - `benchmarks/seeds.py` - reproducibility helpers.
@@ -695,8 +720,8 @@ Architecture note:
   - `plot_taf_acquisition_heatmap.py` - visualize stored TAF acquisition query values and zero-mask behavior per iteration.
   - `aggregate_results.py` - placeholder aggregation script.
 - `server_scripts/` - server-oriented command-line entrypoints.
-  - `run_botorch_server.py` - run generic WebSocket server for external ask/tell optimization (`bo_botorch` or `bo_scratch` via config/start message).
-  - `run_botorch_fake_client.py` - fake Branin client that exercises the server suggest/observe loop.
+  - `run_bo_server.py` - run generic WebSocket server for external ask/tell optimization (`bo_botorch` or `bo_scratch` via config/start message).
+  - `run_fake_client.py` - fake Branin client that exercises the server suggest/observe loop.
 - `tests/` - test suite.
   - `test_functions_test.py` - synthetic functions, variants, and family split persistence tests.
   - `gp_scratch_test.py` - scratch GP fit/posterior tests.

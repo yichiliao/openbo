@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
@@ -21,6 +22,34 @@ from openbo.models.gp_scratch import GPScratch
 from openbo.optimizers.bo_scratch import BORunResult
 
 Objective = Callable[[NDArray[np.float64]], NDArray[np.float64]]
+
+
+@dataclass
+class TAFConfig:
+    """Configuration for ask/tell-style TAF optimizer."""
+
+    bounds: list[tuple[float, float]]
+    taf_run_dir: str | Path
+    n_init: int = 0
+    n_iter: int = 25
+    n_candidates: int = 512
+    n_starts: int = 8
+    search_strategy: str = "multistart"
+    kernel_type: str = "matern52"
+    optimize_hyperparameters: bool = True
+    rho: float = 1.0
+    taf_weight_mode: str = "taf_m"
+    target_weight: float = 1.0
+    source_meta_features: dict[str, NDArray[np.float64]] | None = None
+    target_meta_features: NDArray[np.float64] | None = None
+    source_reference_mode: str = "quantile"
+    source_reference_quantile: float = 0.9
+    source_improvement_mode: str = "softplus"
+    source_improvement_temperature: float = 0.05
+    target_ei_floor: float = 1e-12
+    source_only_warmup_iters: int = 3
+    track_acquisition: bool = True
+    seed: int | None = 0
 
 
 def _sobol_in_bounds(
@@ -216,6 +245,279 @@ def _maximize_taf_lbfgsb(
     return x_opt, taf_val
 
 
+class TAFSequentialOptimizer:
+    """Ask/tell-style TAF optimizer state machine."""
+
+    def __init__(self, config: TAFConfig) -> None:
+        self.config = config
+        self.rng = np.random.default_rng(config.seed)
+        self.d = len(config.bounds)
+        self.lower = np.array([b[0] for b in config.bounds], dtype=np.float64)
+        self.upper = np.array([b[1] for b in config.bounds], dtype=np.float64)
+        self.x_obs = np.empty((0, self.d), dtype=np.float64)
+        self.y_obs = np.empty((0,), dtype=np.float64)
+        self.best_y_history: list[float] = []
+        self.iter_count = 0
+        self.pending_x: NDArray[np.float64] | None = None
+
+        self.source_surrogates = _load_source_surrogates(config.taf_run_dir)
+        source_meta_map = _normalize_meta_map(config.source_meta_features)
+        for source in self.source_surrogates:
+            if source.name in source_meta_map:
+                source.meta_features = source_meta_map[source.name]
+            source.reference_y = _source_reference_value(
+                y_values=source.gp.y_train,
+                mode=config.source_reference_mode,
+                quantile=config.source_reference_quantile,
+            )
+
+        self.target_gp = GPScratch(
+            lengthscale=np.full(self.d, 1.5, dtype=np.float64),
+            variance=1.0,
+            noise=1e-6,
+            kernel_type=config.kernel_type,
+            optimize_hyperparameters=config.optimize_hyperparameters,
+            optimize_noise=False,
+            optimizer_seed=config.seed,
+        )
+        self.acquisition_trace: list[dict[str, object]] = []
+
+    def bootstrap(self, objective: Objective) -> None:
+        """Collect random initial observations."""
+        if self.config.n_init <= 0:
+            return
+        x_init = self.rng.uniform(
+            self.lower, self.upper, size=(self.config.n_init, self.d)
+        ).astype(np.float64)
+        y_init = np.asarray(objective(x_init), dtype=np.float64)
+        if y_init.shape != (self.config.n_init,):
+            raise ValueError(
+                f"Objective must return shape ({self.config.n_init},), got {y_init.shape}."
+            )
+        self.observe(x_init, y_init)
+
+    def suggest(self) -> NDArray[np.float64]:
+        """Suggest next point batch of shape (1, d)."""
+        if self.pending_x is not None:
+            raise ValueError("Cannot suggest again before observe.")
+        if self.iter_count >= self.config.n_iter:
+            raise ValueError("No iterations remaining.")
+
+        iter_idx = self.iter_count
+        source_only_phase = iter_idx < int(max(self.config.source_only_warmup_iters, 0))
+        if source_only_phase:
+            target_gp_eval: GPScratch | None = None
+            target_weight_eval = 0.0
+            target_best_y = float("-inf") if iter_idx == 0 else (
+                float(np.max(self.y_obs)) if self.y_obs.size > 0 else float("-inf")
+            )
+        else:
+            if self.y_obs.size == 0:
+                raise ValueError(
+                    "No target observations available when leaving source-only warmup."
+                )
+            self.target_gp.fit(self.x_obs, self.y_obs)
+            target_gp_eval = self.target_gp
+            target_weight_eval = float(self.config.target_weight)
+            target_best_y = float(np.max(self.y_obs))
+
+        if self.config.target_meta_features is not None:
+            target_meta = np.asarray(
+                self.config.target_meta_features, dtype=np.float64
+            ).reshape(-1)
+        elif self.y_obs.size == 0:
+            target_meta = _default_target_meta_when_empty(self.d)
+        else:
+            target_meta = _default_meta_features(self.x_obs, self.y_obs)
+
+        if self.config.taf_weight_mode == "taf_m":
+            source_meta = np.stack(
+                [s.meta_features for s in self.source_surrogates], axis=0
+            )
+            source_weights = compute_taf_m_weights(
+                source_meta, target_meta, rho=self.config.rho
+            )
+        elif self.config.taf_weight_mode == "taf_r":
+            source_weights = compute_taf_r_weights(
+                source_surrogates=self.source_surrogates,
+                x_obs=self.x_obs,
+                y_obs=self.y_obs,
+                rho=self.config.rho,
+            )
+        else:
+            raise ValueError("taf_weight_mode must be 'taf_m' or 'taf_r'.")
+
+        if self.config.search_strategy == "multistart":
+            x_pool = _sobol_in_bounds(
+                self.lower, self.upper, self.config.n_candidates, self.rng
+            )
+            taf_pool = np.asarray(
+                taf_m_acquisition(
+                    x_pool,
+                    target_gp=target_gp_eval,
+                    target_best_y=target_best_y,
+                    source_surrogates=self.source_surrogates,
+                    source_weights=source_weights,
+                    target_weight=target_weight_eval,
+                    source_improvement_mode=self.config.source_improvement_mode,
+                    source_improvement_temperature=self.config.source_improvement_temperature,
+                    target_ei_floor=self.config.target_ei_floor,
+                ),
+                dtype=np.float64,
+            )
+            n_starts_eff = int(max(1, min(self.config.n_starts, self.config.n_candidates)))
+            start_indices = np.argsort(taf_pool)[-n_starts_eff:]
+            x_starts = x_pool[start_indices]
+            best_start_idx = int(np.argmax(taf_pool[start_indices]))
+            best_x = x_starts[best_start_idx].copy()
+            best_val = float(taf_pool[start_indices][best_start_idx])
+            queried_x: list[NDArray[np.float64]] = []
+            queried_v: list[float] = []
+            if self.config.track_acquisition:
+                queried_x.extend([row.copy() for row in x_pool])
+                queried_v.extend([float(v) for v in taf_pool])
+
+            for x_start in x_starts:
+                x_refined, taf_refined = _maximize_taf_lbfgsb(
+                    x0=x_start,
+                    lower=self.lower,
+                    upper=self.upper,
+                    target_gp=target_gp_eval,
+                    target_best_y=target_best_y,
+                    source_surrogates=self.source_surrogates,
+                    source_weights=source_weights,
+                    target_weight=target_weight_eval,
+                    source_improvement_mode=self.config.source_improvement_mode,
+                    source_improvement_temperature=self.config.source_improvement_temperature,
+                    target_ei_floor=self.config.target_ei_floor,
+                    query_x=queried_x if self.config.track_acquisition else None,
+                    query_v=queried_v if self.config.track_acquisition else None,
+                )
+                if taf_refined > best_val:
+                    best_val = taf_refined
+                    best_x = x_refined.copy()
+            x_next = best_x[None, :]
+            if self.config.track_acquisition and queried_v:
+                queried_vals_arr = np.asarray(queried_v, dtype=np.float64)
+                queried_x_arr = np.asarray(queried_x, dtype=np.float64)
+                self.acquisition_trace.append(
+                    {
+                        "iteration": int(iter_idx),
+                        "strategy": "multistart",
+                        "x": queried_x_arr.tolist(),
+                        "values": queried_vals_arr.tolist(),
+                        "zero_fraction": float(np.mean(queried_vals_arr <= 1e-12)),
+                        "mean": float(np.mean(queried_vals_arr)),
+                        "min": float(np.min(queried_vals_arr)),
+                        "max": float(np.max(queried_vals_arr)),
+                        "n_queries": int(queried_vals_arr.size),
+                    }
+                )
+        elif self.config.search_strategy == "grid":
+            x_grid = _sobol_in_bounds(
+                self.lower, self.upper, self.config.n_candidates, self.rng
+            )
+            taf_grid = np.asarray(
+                taf_m_acquisition(
+                    x_grid,
+                    target_gp=target_gp_eval,
+                    target_best_y=target_best_y,
+                    source_surrogates=self.source_surrogates,
+                    source_weights=source_weights,
+                    target_weight=target_weight_eval,
+                    source_improvement_mode=self.config.source_improvement_mode,
+                    source_improvement_temperature=self.config.source_improvement_temperature,
+                    target_ei_floor=self.config.target_ei_floor,
+                ),
+                dtype=np.float64,
+            )
+            best_idx = int(np.argmax(taf_grid))
+            x_next = x_grid[best_idx : best_idx + 1]
+            if self.config.track_acquisition:
+                self.acquisition_trace.append(
+                    {
+                        "iteration": int(iter_idx),
+                        "strategy": "grid",
+                        "x": x_grid.tolist(),
+                        "values": taf_grid.tolist(),
+                        "zero_fraction": float(np.mean(taf_grid <= 1e-12)),
+                        "mean": float(np.mean(taf_grid)),
+                        "min": float(np.min(taf_grid)),
+                        "max": float(np.max(taf_grid)),
+                        "n_queries": int(taf_grid.size),
+                    }
+                )
+        else:
+            raise ValueError(
+                f"Unknown search_strategy '{self.config.search_strategy}'. "
+                "Use 'multistart' or 'grid'."
+            )
+
+        self.pending_x = x_next.copy()
+        return x_next
+
+    def observe(
+        self,
+        x_new: NDArray[np.float64],
+        y_new: NDArray[np.float64],
+    ) -> None:
+        """Tell optimizer new observations."""
+        x_new = np.asarray(x_new, dtype=np.float64)
+        y_new = np.asarray(y_new, dtype=np.float64)
+        if x_new.ndim != 2 or x_new.shape[1] != self.d:
+            raise ValueError(f"x_new must have shape (n, {self.d}), got {x_new.shape}.")
+        if y_new.ndim != 1 or y_new.shape[0] != x_new.shape[0]:
+            raise ValueError("y_new must have shape (n,) and match x_new rows.")
+        if self.pending_x is not None and (
+            self.pending_x.shape != x_new.shape or not np.allclose(self.pending_x, x_new)
+        ):
+            raise ValueError("Observed x does not match pending suggestion.")
+
+        self.x_obs = np.vstack([self.x_obs, x_new])
+        self.y_obs = np.concatenate([self.y_obs, y_new])
+        self.best_y_history.append(float(np.max(self.y_obs)))
+        self.pending_x = None
+        if self.iter_count < self.config.n_iter:
+            self.iter_count += 1
+
+    def result(self) -> BORunResult:
+        """Build run result from current state."""
+        if self.x_obs.shape[0] == 0:
+            raise ValueError("bo_taf finished without any observations.")
+        self.target_gp.fit(self.x_obs, self.y_obs)
+        lengthscale_arr = np.asarray(self.target_gp.lengthscale, dtype=np.float64).reshape(-1)
+        final_gp_state: dict[str, object] = {
+            "kernel_type": self.target_gp.kernel_type,
+            "lengthscale": [float(v) for v in lengthscale_arr],
+            "variance": float(self.target_gp.variance),
+            "noise": float(self.target_gp.noise),
+            "standardize_targets": bool(self.target_gp.standardize_targets),
+            "optimize_hyperparameters": bool(self.target_gp.optimize_hyperparameters),
+            "optimize_noise": bool(self.target_gp.optimize_noise),
+            "y_mean": float(self.target_gp.y_mean),
+            "y_std": float(self.target_gp.y_std),
+            "n_observations": int(self.x_obs.shape[0]),
+            "dim": int(self.d),
+            "taf_rho": float(self.config.rho),
+            "taf_weight_mode": self.config.taf_weight_mode,
+            "n_sources": int(len(self.source_surrogates)),
+            "source_reference_mode": self.config.source_reference_mode,
+            "source_reference_quantile": float(self.config.source_reference_quantile),
+            "source_improvement_mode": self.config.source_improvement_mode,
+            "source_improvement_temperature": float(
+                self.config.source_improvement_temperature
+            ),
+            "target_ei_floor": float(self.config.target_ei_floor),
+            "taf_acquisition_trace": self.acquisition_trace,
+        }
+        return BORunResult(
+            x_obs=self.x_obs.astype(np.float64),
+            y_obs=self.y_obs.astype(np.float64),
+            best_y_history=np.asarray(self.best_y_history, dtype=np.float64),
+            final_gp_state=final_gp_state,
+        )
+
+
 def run_bo_taf(
     objective: Objective,
     bounds: list[tuple[float, float]],
@@ -241,226 +543,36 @@ def run_bo_taf(
     track_acquisition: bool = True,
     seed: int | None = 0,
 ) -> BORunResult:
-    """Run BO with TAF-M acquisition and source surrogates from saved TAF run."""
-    rng = np.random.default_rng(seed)
-    d = len(bounds)
-    lower = np.array([b[0] for b in bounds], dtype=np.float64)
-    upper = np.array([b[1] for b in bounds], dtype=np.float64)
-
-    source_surrogates = _load_source_surrogates(taf_run_dir)
-    source_meta_map = _normalize_meta_map(source_meta_features)
-    for source in source_surrogates:
-        if source.name in source_meta_map:
-            source.meta_features = source_meta_map[source.name]
-    for source in source_surrogates:
-        source.reference_y = _source_reference_value(
-            y_values=source.gp.y_train,
-            mode=source_reference_mode,
-            quantile=source_reference_quantile,
+    """Run BO with TAF acquisition and source surrogates from saved TAF run."""
+    optimizer = TAFSequentialOptimizer(
+        TAFConfig(
+            bounds=bounds,
+            taf_run_dir=taf_run_dir,
+            n_init=n_init,
+            n_iter=n_iter,
+            n_candidates=n_candidates,
+            n_starts=n_starts,
+            search_strategy=search_strategy,
+            kernel_type=kernel_type,
+            optimize_hyperparameters=optimize_hyperparameters,
+            rho=rho,
+            taf_weight_mode=taf_weight_mode,
+            target_weight=target_weight,
+            source_meta_features=source_meta_features,
+            target_meta_features=target_meta_features,
+            source_reference_mode=source_reference_mode,
+            source_reference_quantile=source_reference_quantile,
+            source_improvement_mode=source_improvement_mode,
+            source_improvement_temperature=source_improvement_temperature,
+            target_ei_floor=target_ei_floor,
+            source_only_warmup_iters=source_only_warmup_iters,
+            track_acquisition=track_acquisition,
+            seed=seed,
         )
-
-    if n_init < 0:
-        raise ValueError("n_init must be non-negative.")
-    if n_iter < 0:
-        raise ValueError("n_iter must be non-negative.")
-
-    if n_init > 0:
-        x_obs = rng.uniform(lower, upper, size=(n_init, d)).astype(np.float64)
-        y_obs = np.asarray(objective(x_obs), dtype=np.float64)
-        if y_obs.shape != (n_init,):
-            raise ValueError(
-                f"Objective must return shape ({n_init},), got {y_obs.shape}."
-            )
-    else:
-        x_obs = np.empty((0, d), dtype=np.float64)
-        y_obs = np.empty((0,), dtype=np.float64)
-    best_y_history: list[float] = []
-
-    target_gp = GPScratch(
-        lengthscale=np.full(d, 1.5, dtype=np.float64),
-        variance=1.0,
-        noise=1e-6,
-        kernel_type=kernel_type,
-        optimize_hyperparameters=optimize_hyperparameters,
-        optimize_noise=False,
-        optimizer_seed=seed,
     )
-    acquisition_trace: list[dict[str, object]] = []
-
-    for iter_idx in range(n_iter):
-        source_only_phase = iter_idx < int(max(source_only_warmup_iters, 0))
-        if source_only_phase:
-            target_gp_eval: GPScratch | None = None
-            target_weight_eval = 0.0
-            target_best_y = float("-inf") if iter_idx == 0 else (
-                float(np.max(y_obs)) if y_obs.size > 0 else float("-inf")
-            )
-        else:
-            if y_obs.size == 0:
-                raise ValueError(
-                    "No target observations available when leaving source-only warmup."
-                )
-            target_gp.fit(x_obs, y_obs)
-            target_gp_eval = target_gp
-            target_weight_eval = float(target_weight)
-            target_best_y = float(np.max(y_obs))
-        if target_meta_features is not None:
-            target_meta = np.asarray(target_meta_features, dtype=np.float64).reshape(-1)
-        elif y_obs.size == 0:
-            target_meta = _default_target_meta_when_empty(d)
-        else:
-            target_meta = _default_meta_features(x_obs, y_obs)
-        if taf_weight_mode == "taf_m":
-            source_meta = np.stack([s.meta_features for s in source_surrogates], axis=0)
-            source_weights = compute_taf_m_weights(source_meta, target_meta, rho=rho)
-        elif taf_weight_mode == "taf_r":
-            source_weights = compute_taf_r_weights(
-                source_surrogates=source_surrogates,
-                x_obs=x_obs,
-                y_obs=y_obs,
-                rho=rho,
-            )
-        else:
-            raise ValueError("taf_weight_mode must be 'taf_m' or 'taf_r'.")
-
-        if search_strategy == "multistart":
-            x_pool = _sobol_in_bounds(lower, upper, n_candidates, rng)
-            taf_pool = np.asarray(
-                taf_m_acquisition(
-                    x_pool,
-                    target_gp=target_gp_eval,
-                    target_best_y=target_best_y,
-                    source_surrogates=source_surrogates,
-                    source_weights=source_weights,
-                    target_weight=target_weight_eval,
-                    source_improvement_mode=source_improvement_mode,
-                    source_improvement_temperature=source_improvement_temperature,
-                    target_ei_floor=target_ei_floor,
-                ),
-                dtype=np.float64,
-            )
-            n_starts_eff = int(max(1, min(n_starts, n_candidates)))
-            start_indices = np.argsort(taf_pool)[-n_starts_eff:]
-            x_starts = x_pool[start_indices]
-            best_start_idx = int(np.argmax(taf_pool[start_indices]))
-            best_x = x_starts[best_start_idx].copy()
-            best_val = float(taf_pool[start_indices][best_start_idx])
-            queried_x: list[NDArray[np.float64]] = []
-            queried_v: list[float] = []
-            if track_acquisition:
-                queried_x.extend([row.copy() for row in x_pool])
-                queried_v.extend([float(v) for v in taf_pool])
-
-            for x_start in x_starts:
-                x_refined, taf_refined = _maximize_taf_lbfgsb(
-                    x0=x_start,
-                    lower=lower,
-                    upper=upper,
-                    target_gp=target_gp_eval,
-                    target_best_y=target_best_y,
-                    source_surrogates=source_surrogates,
-                    source_weights=source_weights,
-                    target_weight=target_weight_eval,
-                    source_improvement_mode=source_improvement_mode,
-                    source_improvement_temperature=source_improvement_temperature,
-                    target_ei_floor=target_ei_floor,
-                    query_x=queried_x if track_acquisition else None,
-                    query_v=queried_v if track_acquisition else None,
-                )
-                if taf_refined > best_val:
-                    best_val = taf_refined
-                    best_x = x_refined.copy()
-            x_next = best_x[None, :]
-            if track_acquisition and queried_v:
-                queried_vals_arr = np.asarray(queried_v, dtype=np.float64)
-                queried_x_arr = np.asarray(queried_x, dtype=np.float64)
-                acquisition_trace.append(
-                    {
-                        "iteration": int(iter_idx),
-                        "strategy": "multistart",
-                        "x": queried_x_arr.tolist(),
-                        "values": queried_vals_arr.tolist(),
-                        "zero_fraction": float(np.mean(queried_vals_arr <= 1e-12)),
-                        "mean": float(np.mean(queried_vals_arr)),
-                        "min": float(np.min(queried_vals_arr)),
-                        "max": float(np.max(queried_vals_arr)),
-                        "n_queries": int(queried_vals_arr.size),
-                    }
-                )
-            
-        elif search_strategy == "grid":
-            x_grid = _sobol_in_bounds(lower, upper, n_candidates, rng)
-            taf_grid = np.asarray(
-                taf_m_acquisition(
-                    x_grid,
-                    target_gp=target_gp_eval,
-                    target_best_y=target_best_y,
-                    source_surrogates=source_surrogates,
-                    source_weights=source_weights,
-                    target_weight=target_weight_eval,
-                    source_improvement_mode=source_improvement_mode,
-                    source_improvement_temperature=source_improvement_temperature,
-                    target_ei_floor=target_ei_floor,
-                ),
-                dtype=np.float64,
-            )
-            best_idx = int(np.argmax(taf_grid))
-            x_next = x_grid[best_idx : best_idx + 1]
-            if track_acquisition:
-                acquisition_trace.append(
-                    {
-                        "iteration": int(iter_idx),
-                        "strategy": "grid",
-                        "x": x_grid.tolist(),
-                        "values": taf_grid.tolist(),
-                        "zero_fraction": float(np.mean(taf_grid <= 1e-12)),
-                        "mean": float(np.mean(taf_grid)),
-                        "min": float(np.min(taf_grid)),
-                        "max": float(np.max(taf_grid)),
-                        "n_queries": int(taf_grid.size),
-                    }
-                )
-        else:
-            raise ValueError(
-                f"Unknown search_strategy '{search_strategy}'. "
-                "Use 'multistart' or 'grid'."
-            )
-
+    optimizer.bootstrap(objective)
+    for _ in range(n_iter):
+        x_next = optimizer.suggest()
         y_next = np.asarray(objective(x_next), dtype=np.float64)
-        x_obs = np.vstack([x_obs, x_next])
-        y_obs = np.concatenate([y_obs, y_next])
-        best_y_history.append(float(np.max(y_obs)))
-
-    if x_obs.shape[0] == 0:
-        raise ValueError("bo_taf finished without any observations.")
-    target_gp.fit(x_obs, y_obs)
-    lengthscale_arr = np.asarray(target_gp.lengthscale, dtype=np.float64).reshape(-1)
-    final_gp_state: dict[str, object] = {
-        "kernel_type": target_gp.kernel_type,
-        "lengthscale": [float(v) for v in lengthscale_arr],
-        "variance": float(target_gp.variance),
-        "noise": float(target_gp.noise),
-        "standardize_targets": bool(target_gp.standardize_targets),
-        "optimize_hyperparameters": bool(target_gp.optimize_hyperparameters),
-        "optimize_noise": bool(target_gp.optimize_noise),
-        "y_mean": float(target_gp.y_mean),
-        "y_std": float(target_gp.y_std),
-        "n_observations": int(x_obs.shape[0]),
-        "dim": int(d),
-        "taf_rho": float(rho),
-        "taf_weight_mode": taf_weight_mode,
-        "n_sources": int(len(source_surrogates)),
-        "source_reference_mode": source_reference_mode,
-        "source_reference_quantile": float(source_reference_quantile),
-        "source_improvement_mode": source_improvement_mode,
-        "source_improvement_temperature": float(source_improvement_temperature),
-        "target_ei_floor": float(target_ei_floor),
-        "taf_acquisition_trace": acquisition_trace,
-    }
-
-    return BORunResult(
-        x_obs=x_obs.astype(np.float64),
-        y_obs=y_obs.astype(np.float64),
-        best_y_history=np.asarray(best_y_history, dtype=np.float64),
-        final_gp_state=final_gp_state,
-    )
+        optimizer.observe(x_next, y_next)
+    return optimizer.result()

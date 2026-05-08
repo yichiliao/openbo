@@ -651,6 +651,17 @@ uv run python server_scripts/run_fake_client.py \
   --save-json test_results/trajectories/fake_client_done.json
 ```
 
+For dedicated TAF server testing:
+
+```bash
+uv run python server_scripts/run_fake_client.py \
+  --uri ws://127.0.0.1:8766 \
+  --n-init 0 \
+  --n-iter 8 \
+  --seed 0 \
+  --save-json test_results/trajectories/fake_client_taf_done.json
+```
+
 ### 5) Server notes and troubleshooting
 
 Server config precedence:

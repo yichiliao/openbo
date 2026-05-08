@@ -15,7 +15,11 @@ from openbo.acquisition.taf import (
     taf_m_acquisition,
 )
 from openbo.models.gp_scratch import GPScratch
-from openbo.optimizers.bo_botorch import run_bo_botorch
+from openbo.optimizers.bo_botorch import (
+    BoTorchConfig,
+    BoTorchSequentialOptimizer,
+    run_bo_botorch,
+)
 from openbo.optimizers.bo_scratch import run_bo_scratch
 from openbo.optimizers.bo_taf import run_bo_taf
 from openbo.test_functions.registry import get_function_spec
@@ -62,6 +66,27 @@ def test_botorch_bo_runs_small_loop() -> None:
     assert result.x_obs.shape == (5, 2)
     assert result.y_obs.shape == (5,)
     assert result.best_y_history.shape == (3,)
+
+
+def test_botorch_sequential_optimizer_ask_tell() -> None:
+    """BoTorch sequential optimizer should support ask/tell style updates."""
+    spec = get_function_spec("branin")
+    optimizer = BoTorchSequentialOptimizer(
+        BoTorchConfig(bounds=spec.bounds, n_init=3, seed=0)
+    )
+    optimizer.bootstrap(spec.objective)
+    assert optimizer.x_obs.shape == (3, 2)
+    assert optimizer.y_obs.shape == (3,)
+
+    x_next = optimizer.suggest()
+    assert x_next.shape == (1, 2)
+    y_next = np.asarray(spec.objective(x_next), dtype=np.float64)
+    optimizer.observe(x_next, y_next)
+
+    result = optimizer.result()
+    assert result.x_obs.shape == (4, 2)
+    assert result.y_obs.shape == (4,)
+    assert result.best_y_history.shape == (2,)
 
 
 def test_epanechnikov_weight_behavior() -> None:

@@ -455,6 +455,120 @@ We thoroughly compared the performance of our BO, implemented from scratch (`bo_
   - `/visual_search_behaviors_with_noise`: Detailed comparisons of the search behavior of different methods in these test functions
 
 
+## Server-based Optimization Workflow
+
+OpenBO supports a server-style optimization loop for external applications
+that evaluate candidate designs outside this Python process.
+
+Current server implementation:
+- `bo_botorch` via WebSocket (`server_scripts/run_botorch_server.py`)
+
+### 1) Start the optimizer server
+
+```bash
+uv run python server_scripts/run_botorch_server.py --host 127.0.0.1 --port 8765
+```
+
+### 2) WebSocket message protocol (JSON)
+
+Client -> Server:
+- `start`: create a new optimization session
+- `suggest`: ask for the next design (optional after `start`, since server auto-sends first suggestion)
+- `observe`: return evaluation result for the latest suggested design
+- `status`: get current progress
+
+Server -> Client:
+- `suggest`: next design vector `x`
+- `done`: optimization finished; returns full trajectory and best solution
+- `status`: progress snapshot
+- `error`: validation/protocol error
+
+`start` payload example:
+
+```json
+{
+  "type": "start",
+  "bounds": [[0.0, 1.0], [0.0, 1.0]],
+  "n_init": 5,
+  "n_iter": 25,
+  "seed": 0,
+  "num_restarts": 5,
+  "raw_samples": 64
+}
+```
+
+`observe` payload example:
+
+```json
+{
+  "type": "observe",
+  "x": [0.12, 0.88],
+  "y": -1.234
+}
+```
+
+### 3) Minimal client loop (Python)
+
+```python
+import asyncio
+import json
+import websockets
+
+async def objective(x):
+    # Replace this with your external app evaluation.
+    return -((x[0] - 0.25) ** 2 + (x[1] - 0.75) ** 2)
+
+async def main():
+    async with websockets.connect("ws://127.0.0.1:8765") as ws:
+        await ws.send(json.dumps({
+            "type": "start",
+            "bounds": [[0.0, 1.0], [0.0, 1.0]],
+            "n_init": 2,
+            "n_iter": 8,
+            "seed": 0
+        }))
+
+        msg = json.loads(await ws.recv())
+        while msg["type"] != "done":
+            if msg["type"] != "suggest":
+                raise RuntimeError(msg)
+            x = msg["x"]
+            y = await objective(x)
+            await ws.send(json.dumps({"type": "observe", "x": x, "y": y}))
+            msg = json.loads(await ws.recv())
+
+        print("best_value:", msg["best_value"])
+        print("best_x:", msg["best_x"])
+
+asyncio.run(main())
+```
+
+Notes:
+- One WebSocket connection corresponds to one session.
+- The server enforces ask/tell order (`suggest` then `observe`).
+- `done` includes `x_values`, `y_values`, and `best_y_history` for logging/debugging.
+
+### 4) Run provided fake Branin client
+
+OpenBO includes a ready-to-run fake client that acts like an external application
+and evaluates server-suggested points on Branin:
+
+```bash
+uv run python server_scripts/run_botorch_fake_client.py --uri ws://127.0.0.1:8765
+```
+
+Useful options:
+
+```bash
+uv run python server_scripts/run_botorch_fake_client.py \
+  --uri ws://127.0.0.1:8765 \
+  --n-init 2 \
+  --n-iter 8 \
+  --seed 0 \
+  --save-json test_results/trajectories/fake_client_done.json
+```
+
+
 ## Project structure
 
 - `README.md` - project overview and usage.
@@ -477,6 +591,7 @@ We thoroughly compared the performance of our BO, implemented from scratch (`bo_
   - `optimizers/random_search.py` - random-search baseline.
   - `optimizers/bo_scratch.py` - scratch BO loop (Sobol candidate scans + multistart L-BFGS-B EI maximization).
   - `optimizers/bo_botorch.py` - BoTorch BO loop (`SingleTaskGP` + `LogExpectedImprovement`).
+  - `server_optimizers/bo_botorch_server.py` - WebSocket server adapter for BoTorch ask/tell optimization.
   - `optimizers/taf.py`, `optimizers/conbo.py`, `optimizers/naf.py`, `optimizers/pbo.py`, `optimizers/taf_pbo.py` - placeholder optimizer modules.
   - `benchmarks/runner.py` - single-function benchmark runner used by CLI scripts.
   - `benchmarks/seeds.py` - reproducibility helpers.
@@ -489,6 +604,7 @@ We thoroughly compared the performance of our BO, implemented from scratch (`bo_
   - `plot_family_results.py` - family mean/std and best-so-far plots across methods (rerun or from stored trajectories); supports `--noisy` in rerun mode and TAF methods.
   - `plot_taf_gp_predictions.py` - render 2D GP mean/std heatmaps from saved TAF source-task GP states and trajectories.
   - `plot_taf_acquisition_heatmap.py` - visualize stored TAF acquisition query values and zero-mask behavior per iteration.
+  - `run_botorch_server.py` - run WebSocket server for external ask/tell optimization with `bo_botorch`.
   - `aggregate_results.py` - placeholder aggregation script.
 - `tests/` - test suite.
   - `test_functions_test.py` - synthetic functions, variants, and family split persistence tests.

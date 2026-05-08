@@ -604,8 +604,10 @@ uv run python server_scripts/run_botorch_fake_client.py \
   - `plot_family_results.py` - family mean/std and best-so-far plots across methods (rerun or from stored trajectories); supports `--noisy` in rerun mode and TAF methods.
   - `plot_taf_gp_predictions.py` - render 2D GP mean/std heatmaps from saved TAF source-task GP states and trajectories.
   - `plot_taf_acquisition_heatmap.py` - visualize stored TAF acquisition query values and zero-mask behavior per iteration.
-  - `run_botorch_server.py` - run WebSocket server for external ask/tell optimization with `bo_botorch`.
   - `aggregate_results.py` - placeholder aggregation script.
+- `server_scripts/` - server-oriented command-line entrypoints.
+  - `run_botorch_server.py` - run WebSocket server for external ask/tell optimization with `bo_botorch`.
+  - `run_botorch_fake_client.py` - fake Branin client that exercises the server suggest/observe loop.
 - `tests/` - test suite.
   - `test_functions_test.py` - synthetic functions, variants, and family split persistence tests.
   - `gp_scratch_test.py` - scratch GP fit/posterior tests.

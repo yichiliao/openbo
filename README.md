@@ -2,7 +2,9 @@
 
 OpenBO is a research + teaching Python library for Bayesian optimization (BO) and meta-BO.
 
-## Current scope
+## 0. Current scope
+
+**Purpose:** Summarize what this repository already ships—test functions, optimizers, benchmarks, plotting, and split utilities—so you can see feature coverage at a glance before diving into workflows.
 
 This repository currently includes:
 
@@ -16,7 +18,9 @@ This repository currently includes:
 - reusable train/test family split generation and persistence
 
 
-## Quickstart
+## 1. Installation and quickstart
+
+**Purpose:** Create the Python environment (`uv`/`.venv`) and confirm you can run tests and CLI entrypoints the same way the rest of this README expects.
 
 Set up the project environment first:
 
@@ -45,7 +49,23 @@ Run all tests:
 uv run pytest
 ```
 
-## Single-function workflow
+### Table of contents
+
+- [0. Current scope](#0-current-scope)
+- [1. Installation and quickstart](#1-installation-and-quickstart)
+- [2. Single-function workflow](#2-single-function-workflow)
+- [3. Family-of-functions workflow](#3-family-of-functions-workflow)
+- [4. Meta-BO training and testing](#4-meta-bo-training-and-testing)
+- [5. Server-based Optimization Workflow](#5-server-based-optimization-workflow)
+- [6. End-to-end TAF workflow: family split → scratch GPs → TAF](#6-end-to-end-taf-workflow-family-split-scratch-gps-taf)
+- [7. Results folder convention](#7-results-folder-convention)
+- [8. Important benchmark results](#8-important-benchmark-results)
+- [9. Project structure](#9-project-structure)
+- [Contact](#contact)
+
+## 2. Single-function workflow
+
+**Purpose:** Run and compare optimizers on a **single** named test function (e.g. Branin): command-line benchmarks, trajectory JSON, optional noise and 2D search plots, and log-regret figures via `plot_results.py`.
 
 Run one benchmark on a single base function (default: `branin`).
 
@@ -225,7 +245,9 @@ uv run python scripts/plot_results.py \
 Tip:
 - If you benchmarked with `scripts/run_benchmark.py --noisy`, and want plots from those exact runs, use **stored mode** so the plot reflects the same noisy trajectories.
 
-## Family-of-functions workflow
+## 3. Family-of-functions workflow
+
+**Purpose:** Work with **many related tasks** (variants of one base function): run one method across the family, save per-task trajectories, create persistent train/test splits, and plot mean/std log-regret with `plot_family_results.py`.
 
 Run one method across a family of Branin variants:
 
@@ -322,7 +344,9 @@ uv run python scripts/plot_family_results.py \
   --results-dir test_results
 ```
 
-## Meta-BO training and testing
+## 4. Meta-BO training and testing
+
+**Purpose:** Describe the **meta-BO loop** in-repo: define a task family and split, train on source tasks (e.g. scratch BO saving GPs and trajectories), then evaluate transfer methods such as TAF on held-out tasks using the same benchmark scripts as §2–3.
 
 Generally meta-Bayesian optimization workflow follows these three steps:
 - Step 1: Generate a family of tasks using the same base function, and then split the training tasks and testing tasks.
@@ -330,7 +354,7 @@ Generally meta-Bayesian optimization workflow follows these three steps:
 - Step 3: Test the optimizer's performance on test tasks. 
 
 
-### Transfer Acquisition Function (TAF) workflow
+### 4.1. Transfer Acquisition Function (TAF) workflow
 
 Step 1: Create a persistent train/test split:
 
@@ -428,34 +452,9 @@ Notes:
 - `bo_taf_m` / `bo_taf_r` are recommended for cleaner benchmark tracking.
 
 
-## Results folder convention
+## 5. Server-based Optimization Workflow
 
-By default, artifacts are organized under `test_results/`:
-
-- `test_results/trajectories/`
-  - single-function run JSONs:
-    - `{test_id}_{method}_{function}.json`
-  - family run folders:
-    - `{test_id}_{method}_{base_function}_{subset}/`
-    - containing one task file per task plus `summary.json`
-- `test_results/plots/`
-  - single-function and family plot PNGs
-
-Practical workflow convention:
-- Keep using `test_results/` as the default for day-to-day experiments and quick iterations.
-- Use `--results-dir benchmark_results` for large, milestone-style benchmark runs that you want to keep stable over time.
-- Prefer unique `--test-id` values for archived runs in `benchmark_results/` to avoid accidental overwrite.
-
-## Important benchmark results
-
-We thoroughly compared the performance of our BO, implemented from scratch (`bo_scratch_grid` and `bo_scratch_multistart`), against BoTorch implementation (`bo_botorch`) on low-dimensional test functions. The results are stored in: 
-- `benchmark_results/benchmark_scratch_botorch`
-  - `/benchmark_BO_BoTorch_no_noise`: Benchmark our BO with BoTorch BO in functions without Gaussian noises in the output
-  - `/benchmark_BO_BoTorch_with_noise`: Benchmark our BO with BoTorch BO in functions with Gaussian noises in the output
-  - `/visual_search_behaviors_with_noise`: Detailed comparisons of the search behavior of different methods in these test functions
-
-
-## Server-based Optimization Workflow
+**Purpose:** Run the same BO backends **over WebSockets** when your objective lives outside this process (simulator, service, or other language): start a server, speak the JSON ask/tell protocol, and use the included fake client for a quick smoke test.
 
 OpenBO supports a server-style optimization loop for external applications
 that evaluate candidate designs outside this Python process.
@@ -465,7 +464,7 @@ Current server implementation:
 - Supported backends in generic server: `bo_botorch`, `bo_scratch`
 - Dedicated TAF server via WebSocket (`server_scripts/run_taf_server.py`)
 
-### 1) Start the optimizer server
+### Step 1. Start the optimizer server
 
 Use one of the backend-specific config files:
 - `configs/server_optimizers/bo_server_botorch.yaml`
@@ -546,7 +545,7 @@ Assumptions for server optimization:
 - for `bo_scratch`, you can auto-save TAF-compatible `trajectories/*.json` and `gp_states/*.json`
   using `auto_save_scratch_artifacts: true`
 
-### 2) WebSocket message protocol (JSON)
+### Step 2. WebSocket message protocol (JSON)
 
 Client -> Server:
 - `start`: create a new optimization session
@@ -593,7 +592,7 @@ Server -> Client:
 }
 ```
 
-### 3) Minimal client loop (Python)
+### Step 3. Minimal client loop (Python)
 
 ```python
 import asyncio
@@ -635,7 +634,7 @@ Notes:
 - `stop` returns a `stopped` payload with partial trajectory and best-so-far values.
 - `observe.y` must stay within configured `y_range`.
 
-### 4) Run provided fake Branin client
+### Step 4. Run provided fake Branin client
 
 OpenBO includes a ready-to-run fake client that acts like an external application
 and evaluates server-suggested points on Branin:
@@ -671,9 +670,11 @@ This writes `test_results/trajectories/fake_client_taf_done_x_locations.png` nex
 (same 2D heatmap + iteration-colored points as `scripts/run_benchmark.py --plot-x-locations`).
 Use `--plot-output path/to/plot.png` to choose the PNG path; Branin is assumed (`input_dim: 2`).
 
-### 5) End-to-end workflow: family split → scratch GPs → TAF 
+## 6. End-to-end TAF workflow: family split → scratch GPs → TAF
 
-**Step 1 — Create a train/test split**
+**Purpose:** Walk through the **manual** end-to-end pipeline for transfer BO: create a split, train source tasks through the scratch server (saving `gp_states/` and `trajectories/`), point the TAF server at that run directory, optimize test tasks, and optionally plot regret—substituting your own client where the examples use Branin or family helpers.
+
+### Step 1. Create a train/test split
 
 From the repo root:
 
@@ -689,7 +690,7 @@ uv run python scripts/create_family_split.py \
 The command prints `n_train` and `n_test` (expect 9 and 6). The JSON contains
 `train_variants` and `test_variants` used in the next steps.
 
-**Step 2 — Configure `run_bo_server` (scratch) to auto-save TAF-style artifacts**
+### Step 2. Configure `run_bo_server` (scratch) to auto-save TAF-style artifacts
 
 Use a scratch server YAML that enables artifact export and points at a **single**
 directory that will later be your TAF `taf_run_dir` (GPs and trajectories are written
@@ -709,7 +710,7 @@ Save it as e.g. `configs/server_optimizers/bo_taf_server_train_end_to_end.yaml` 
 `meta-bo-training/taf-gps/branin_server_end_to_end` if you want an empty parent folder (the server
 creates `gp_states` and `trajectories` on first save).
 
-**Step 3 — Start the generic BO server (scratch) and keep it running**
+### Step 3. Start the generic BO server (scratch) and keep it running
 
 Pick ports that are free (if `8767` is already in use, choose another port).
 
@@ -720,7 +721,7 @@ uv run python server_scripts/run_bo_server.py \
   --config-path configs/server_optimizers/bo_taf_server_train_end_to_end.yaml
 ```
 
-**Step 4 — Run one WebSocket client per **training** variant (9 sessions)**
+### Step 4. Run one WebSocket client per **training** variant (9 sessions)
 
 For each training task you must:
 
@@ -758,11 +759,11 @@ uv run python scripts/plot_taf_gp_predictions.py \
   --run-dir meta-bo-training/taf-gps/branin_server_end_to_end
 ```
 
-**Step 5 — Stop the scratch server**
+### Step 5. Stop the scratch server for training
 
 Stop the `run_bo_server` process (Ctrl+C in the terminal where it runs).
 
-**Step 6 — Configure and start the TAF server**
+### Step 6. Configure and start the TAF server for testing
 
 Set `taf_run_dir` in your TAF server YAML to the **same** directory you used for
 `scratch_artifacts_dir` (the folder that now contains `gp_states/` and
@@ -783,7 +784,7 @@ uv run python server_scripts/run_taf_server.py \
   --config-path configs/server_optimizers/bo_taf_server_test_end_to_end.yaml
 ```
 
-**Step 7 — Run one client per **test** variant (5 sessions)**
+### Step 7. Run one client per **test** variant
 
 TAF does not require `task_name` in `start` for source filenames, but you must still
 evaluate the **test** task’s Branin variant for each session. Use `test_task` as the
@@ -806,7 +807,7 @@ save trajectories yourself from client logs).
 
 Implementation: `server_scripts/run_manual_family_test_clients.py`.
 
-**Step 8 — Visualize performance from trajectories**
+### Step 8. Visualize performance from trajectories (optional)
 
 You already have **training** trajectories on disk: under your scratch artifact directory,
 `trajectories/train_task_000.json`, … (each includes `y_values` and `best_so_far`).
@@ -867,7 +868,7 @@ Other ideas (not wired in this script): inspect raw `y_values` in the JSON, comp
 | Train sources | `run_bo_server` (scratch, auto-save on) | Each **train** variant | Required unique `task_name` |
 | Test targets | `run_taf_server` | Each **test** variant | Optional fields only |
 
-### 5) Server notes and troubleshooting
+### Server notes and troubleshooting
 
 Server config precedence:
 - `input_dim` and `y_range` are read from `--config-path` YAML at session start.
@@ -907,7 +908,42 @@ Architecture note:
 - `openbo.optimizers.bo_taf` is served by `server_optimizers/bo_taf_server.py` to keep TAF-specific config isolated. Random init is sampled once (same RNG draw pattern as `bootstrap()`), committed as one batched `observe`, and `n_iter` matches `run_bo_taf` (including the extra internal budget step when `n_init > 0`).
 
 
-## Project structure
+## 7. Results folder convention
+
+**Purpose:** Document the **default directory layout** for trajectories and plots (`test_results/` vs custom `--results-dir`) so runs stay organized and archived benchmarks are easy to find.
+
+By default, artifacts are organized under `test_results/`:
+
+- `test_results/trajectories/`
+  - single-function run JSONs:
+    - `{test_id}_{method}_{function}.json`
+  - family run folders:
+    - `{test_id}_{method}_{base_function}_{subset}/`
+    - containing one task file per task plus `summary.json`
+- `test_results/plots/`
+  - single-function and family plot PNGs
+
+Practical workflow convention:
+- Keep using `test_results/` as the default for day-to-day experiments and quick iterations.
+- Use `--results-dir benchmark_results` for large, milestone-style benchmark runs that you want to keep stable over time.
+- Prefer unique `--test-id` values for archived runs in `benchmark_results/` to avoid accidental overwrite.
+
+## 8. Important benchmark results
+
+**Purpose:** Point to **saved benchmark campaigns** (scratch vs BoTorch, with and without output noise) and visual search-behavior comparisons you can browse without rerunning optimizers.
+
+We thoroughly compared the performance of our BO, implemented from scratch (`bo_scratch_grid` and `bo_scratch_multistart`), against BoTorch implementation (`bo_botorch`) on low-dimensional test functions. The results are stored in: 
+- `benchmark_results/benchmark_scratch_botorch`
+  - `/benchmark_BO_BoTorch_no_noise`: Benchmark our BO with BoTorch BO in functions without Gaussian noises in the output
+  - `/benchmark_BO_BoTorch_with_noise`: Benchmark our BO with BoTorch BO in functions with Gaussian noises in the output
+  - `/visual_search_behaviors_with_noise`: Detailed comparisons of the search behavior of different methods in these test functions
+
+
+
+
+## 9. Project structure
+
+**Purpose:** Provide a **concise map** of the repository—configs, `src/openbo`, scripts, server entrypoints, tests, and notebooks—so you know where to change code or add experiments.
 
 - `README.md` - project overview and usage.
 - `pyproject.toml` - dependencies, build config, and project metadata.
@@ -959,4 +995,7 @@ Architecture note:
 - `notebooks/` - teaching notebooks for BO concepts and step-by-step demos.
 
 ## Contact
+
+**Purpose:** Maintainer and email for questions about this repository or collaboration.
+
 This repo is created and maintained by Yi-Chi Liao (yichi.liao@inf.ethz.ch).

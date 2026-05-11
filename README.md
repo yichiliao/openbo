@@ -4,23 +4,40 @@ OpenBO is a research + teaching Python library for Bayesian optimization (BO) an
 
 ## 0. Current scope
 
-**Purpose:** Summarize what this repository already ships—test functions, optimizers, benchmarks, plotting, and split utilities—so you can see feature coverage at a glance before diving into workflows.
+OpenBO targets **research and teaching** in **normalized** input space `[0, 1]^d`: synthetic objectives, standard BO, **transfer BO (TAF)** using saved source-task GPs, and optional **WebSocket** servers when the objective runs outside this process.
 
-This repository currently includes:
+**Test functions and task families**
 
-- synthetic test functions (`Branin`, `Sphere`, `Ackley`, `Rastrigin`, `Rosenbrock`, `Hartmann6`) in normalized input space `[0, 1]^d`
-- random search baseline
-- BO from scratch (NumPy GP + EI)
-- BO with BoTorch (`SingleTaskGP` + `LogExpectedImprovement`)
-- single-task and family benchmark runners
-- trajectory persistence for single-task and family runs
-- log-regret plotting (single-task and family mean/std, including best-so-far)
-- reusable train/test family split generation and persistence
+- Registered synthetics: `branin`, `sphere`, `ackley`, `rastrigin`, `rosenbrock`, `hartmann6` (dims per `registry`; Branin-style tasks are 2D).
+- Optional **Gaussian output noise** and **capping at the optimum** for noisy benchmarks.
+- **Affine variants** of a base function, **random families**, persisted **train/test splits** (`create_family_split`), and objectives built from those splits (`families` + `registry`).
+
+**Optimizers and acquisition**
+
+- **Random search** baseline.
+- **BO from scratch**: NumPy GP + expected improvement; multistart L-BFGS-B search (and a grid-style variant) in `bo_scratch`.
+- **BoTorch BO**: `SingleTaskGP` + `LogExpectedImprovement` in `bo_botorch`.
+- **TAF** (`bo_taf`, `bo_taf_m`, `bo_taf_r`): transfer acquisition using source surrogates loaded from a directory of saved `gp_states/` + `trajectories/` (`bo_taf`).
+
+**Benchmarks, trajectories, and plots**
+
+- **Single-task** and **family** benchmark runners; JSON **trajectories** for single runs and per-task family runs.
+- **Log-regret** plots (per-iteration and best-so-far; single-task and family mean ± std).
+- Optional **2D search-path** plots over a function heatmap (`run_benchmark.py`, `run_fake_client.py`).
+- TAF-specific tooling: **`train_taf`**, GP **prediction heatmaps**, **acquisition** query diagnostics (`plot_taf_*` scripts).
+
+**Servers and integration**
+
+- **Generic WebSocket BO server** (`run_bo_server`): `bo_scratch` or `bo_botorch`; optional **auto-save** of scratch trajectories and GP states for TAF.
+- **Dedicated TAF WebSocket server** (`run_taf_server`): same `TAFSequentialOptimizer` as in-process TAF, ask/tell JSON protocol.
+- **Fake Branin clients** (including `run_fake_client.py` and `scripts/run_botorch_fake_client.py` for BoTorch-oriented tests) and **manual family** client scripts (train variants on scratch, test variants on TAF, optional regret plots).
+
+**Out of scope for now**
+
+- Several other optimizer / acquisition filenames under `src/openbo` (e.g. `conbo`, `naf`, `pbo`) are **stubs** for future work; they are **not** exposed through the benchmark or server CLIs documented here.
 
 
 ## 1. Installation and quickstart
-
-**Purpose:** Create the Python environment (`uv`/`.venv`) and confirm you can run tests and CLI entrypoints the same way the rest of this README expects.
 
 Set up the project environment first:
 

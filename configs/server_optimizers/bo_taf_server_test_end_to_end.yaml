@@ -15,7 +15,7 @@ n_starts_default: 8
 search_strategy_default: multistart
 kernel_type_default: matern52
 optimize_hyperparameters_default: true
-taf_weight_mode_default: taf_r
+taf_weight_mode_default: taf_m
 taf_rho_default: 1.0
 source_only_warmup_iters_default: 3
 track_acquisition_default: true

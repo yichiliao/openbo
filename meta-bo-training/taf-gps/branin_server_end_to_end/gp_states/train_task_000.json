@@ -6,16 +6,16 @@
   "gp_state": {
     "kernel_type": "matern52",
     "lengthscale": [
-      1.168607665916916,
-      3.4232118123837307
+      0.9543486291488038,
+      3.6908998238155193
     ],
-    "variance": 133.47374820505078,
+    "variance": 135.50159629741123,
     "noise": 1e-06,
     "standardize_targets": true,
     "optimize_hyperparameters": true,
     "optimize_noise": false,
-    "y_mean": -22.409144594262294,
-    "y_std": 52.539472903154056,
+    "y_mean": -34.083260806151344,
+    "y_std": 55.534470975822494,
     "n_observations": 30,
     "dim": 2
   }

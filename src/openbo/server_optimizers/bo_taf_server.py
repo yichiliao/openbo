@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -112,6 +112,9 @@ class BOTAFServerSession:
     pending_x: np.ndarray | None = None
     y_min: float = float("-inf")
     y_max: float = float("inf")
+    # Pre-drawn init design (single rng call, same as TAFSequentialOptimizer.bootstrap).
+    _init_x_batch: np.ndarray | None = None
+    _init_y_buffer: list[float] = field(default_factory=list)
 
     @classmethod
     def from_start_message(
@@ -136,11 +139,14 @@ class BOTAFServerSession:
         if taf_weight_mode not in {"taf_m", "taf_r"}:
             raise ValueError("taf_weight_mode must be 'taf_m' or 'taf_r'.")
 
+        # Match run_bo_taf: after batched init observe, iter_count is 1; suggest()
+        # needs iter_count < config.n_iter, so allow one extra slot when n_init > 0.
+        taf_loop_n_iter = n_iter + (1 if n_init > 0 else 0)
         config = TAFConfig(
             bounds=bounds,
             taf_run_dir=taf_run_dir,
             n_init=n_init,
-            n_iter=n_iter,
+            n_iter=taf_loop_n_iter,
             n_candidates=int(
                 payload.get("n_candidates", runtime_config.n_candidates_default)
             ),
@@ -169,19 +175,29 @@ class BOTAFServerSession:
             seed=seed,
         )
         optimizer = TAFSequentialOptimizer(config)
+        init_x_batch: np.ndarray | None = None
+        if n_init > 0:
+            init_x_batch = optimizer.rng.uniform(
+                optimizer.lower,
+                optimizer.upper,
+                size=(n_init, optimizer.d),
+            ).astype(np.float64)
         return cls(
             optimizer=optimizer,
             n_iter=n_iter,
             n_init=n_init,
             y_min=runtime_config.y_min,
             y_max=runtime_config.y_max,
+            _init_x_batch=init_x_batch,
         )
 
     def _next_suggestion(self) -> dict[str, Any]:
         if self.init_count < self.n_init:
-            x = self.optimizer.rng.uniform(
-                self.optimizer.lower, self.optimizer.upper, size=(1, self.optimizer.d)
-            ).astype(np.float64)
+            if self._init_x_batch is None:
+                raise RuntimeError("Internal error: n_init > 0 but init design is missing.")
+            x = self._init_x_batch[self.init_count : self.init_count + 1].astype(
+                np.float64
+            )
             self.init_count += 1
             phase = "init"
             iteration = self.init_count - 1
@@ -215,6 +231,18 @@ class BOTAFServerSession:
         }
 
     def _stopped_payload(self, reason: str) -> dict[str, Any]:
+        if self.optimizer.x_obs.shape[0] == 0:
+            return {
+                "type": "stopped",
+                "optimizer": "bo_taf",
+                "reason": str(reason),
+                "total_observations": 0,
+                "best_value": None,
+                "best_x": None,
+                "x_values": [],
+                "y_values": [],
+                "best_y_history": [],
+            }
         result = self.optimizer.result()
         best_value: float | None = None
         best_x: list[float] | None = None
@@ -261,11 +289,29 @@ class BOTAFServerSession:
                     x_vec, self.pending_x, atol=1e-12
                 ):
                     raise ValueError("observe x does not match pending suggestion.")
-            self.optimizer.observe(
-                self.pending_x.reshape(1, -1),
-                np.array([y], dtype=np.float64),
-            )
-            self.pending_x = None
+
+            # Match TAFSequentialOptimizer.bootstrap: one batched observe for all init
+            # points so iter_count / best_y_history align with run_bo_taf.
+            if self.n_init > 0 and self.optimizer.x_obs.shape[0] == 0:
+                self._init_y_buffer.append(y)
+                self.pending_x = None
+                if len(self._init_y_buffer) < self.n_init:
+                    if self.init_count >= self.n_init and self.bo_count >= self.n_iter:
+                        return self._done_payload()
+                    return self._next_suggestion()
+                x_batch = self._init_x_batch
+                if x_batch is None:
+                    raise RuntimeError("Internal error: init y buffer full but no x batch.")
+                y_batch = np.asarray(self._init_y_buffer, dtype=np.float64)
+                self._init_y_buffer.clear()
+                self.optimizer.observe(x_batch, y_batch)
+            else:
+                self.optimizer.observe(
+                    self.pending_x.reshape(1, -1),
+                    np.array([y], dtype=np.float64),
+                )
+                self.pending_x = None
+
             if self.init_count >= self.n_init and self.bo_count >= self.n_iter:
                 return self._done_payload()
             return self._next_suggestion()

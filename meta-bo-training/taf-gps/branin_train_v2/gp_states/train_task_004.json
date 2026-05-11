@@ -1,0 +1,25 @@
+{
+  "task_name": "train_task_004",
+  "base_function": "branin",
+  "subset": "train",
+  "optimizer": "bo_scratch_multistart",
+  "n_init": 6,
+  "n_iter": 24,
+  "seed": 4,
+  "gp_state": {
+    "kernel_type": "matern52",
+    "lengthscale": [
+      1.1546015907973028,
+      1.3137385525864798
+    ],
+    "variance": 18.0756898311255,
+    "noise": 1e-06,
+    "standardize_targets": true,
+    "optimize_hyperparameters": true,
+    "optimize_noise": false,
+    "y_mean": -21.871444813586077,
+    "y_std": 53.8584288526096,
+    "n_observations": 30,
+    "dim": 2
+  }
+}

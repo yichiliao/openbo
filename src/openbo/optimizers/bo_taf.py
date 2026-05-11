@@ -544,12 +544,15 @@ def run_bo_taf(
     seed: int | None = 0,
 ) -> BORunResult:
     """Run BO with TAF acquisition and source surrogates from saved TAF run."""
+    # After bootstrap, iter_count is 1; suggest() requires iter_count < n_iter, so an
+    # extra budget slot is needed to complete n_iter BO steps when n_init > 0.
+    taf_loop_n_iter = n_iter + (1 if n_init > 0 else 0)
     optimizer = TAFSequentialOptimizer(
         TAFConfig(
             bounds=bounds,
             taf_run_dir=taf_run_dir,
             n_init=n_init,
-            n_iter=n_iter,
+            n_iter=taf_loop_n_iter,
             n_candidates=n_candidates,
             n_starts=n_starts,
             search_strategy=search_strategy,

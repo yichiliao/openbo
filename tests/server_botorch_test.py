@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import numpy as np
 
 from openbo.server_optimizers.bo_server import (
@@ -128,3 +129,42 @@ def test_server_session_runs_to_done_scratch() -> None:
         msg = session.handle({"type": "observe", "x": msg["x"], "y": y})
     assert msg["type"] == "done"
     assert msg["optimizer"] == "bo_scratch"
+
+
+def test_server_session_scratch_auto_saves_artifacts(tmp_path) -> None:
+    """Scratch server can auto-save trajectories and GP states."""
+    runtime = BOServerRuntimeConfig(
+        optimizer="bo_scratch",
+        input_dim=2,
+        y_min=-100.0,
+        y_max=100.0,
+        auto_save_scratch_artifacts=True,
+        scratch_artifacts_dir=str(tmp_path / "scratch-artifacts"),
+    )
+    session = BOServerSession.from_start_message(
+        {
+            "type": "start",
+            "task_name": "train_task_000",
+            "n_init": 2,
+            "n_iter": 2,
+            "seed": 0,
+        },
+        runtime_config=runtime,
+    )
+    msg = session.handle({"type": "suggest"})
+    while msg["type"] != "done":
+        x = np.asarray(msg["x"], dtype=np.float64)
+        y = float(-(np.sum((x - 0.2) ** 2)))
+        msg = session.handle({"type": "observe", "x": msg["x"], "y": y})
+
+    assert msg["type"] == "done"
+    traj_path = tmp_path / "scratch-artifacts" / "trajectories" / "train_task_000.json"
+    gp_path = tmp_path / "scratch-artifacts" / "gp_states" / "train_task_000.json"
+    assert traj_path.exists()
+    assert gp_path.exists()
+
+    traj_payload = json.loads(traj_path.read_text(encoding="utf-8"))
+    gp_payload = json.loads(gp_path.read_text(encoding="utf-8"))
+    assert traj_payload["task_name"] == "train_task_000"
+    assert gp_payload["task_name"] == "train_task_000"
+    assert "gp_state" in gp_payload

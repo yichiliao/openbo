@@ -1,0 +1,22 @@
+{
+  "task_name": "train_task_003",
+  "optimizer": "bo_scratch_server",
+  "n_init": 5,
+  "n_iter": 25,
+  "gp_state": {
+    "kernel_type": "matern52",
+    "lengthscale": [
+      0.7339328415013484,
+      1.7679187542406283
+    ],
+    "variance": 36.22225579803542,
+    "noise": 1e-06,
+    "standardize_targets": true,
+    "optimize_hyperparameters": true,
+    "optimize_noise": false,
+    "y_mean": -21.636415258449322,
+    "y_std": 41.71973241788646,
+    "n_observations": 30,
+    "dim": 2
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "run_id": "branin_train_v2",
+  "split_path": "configs/family_splits/branin_split.json",
+  "base_function": "branin",
+  "subset": "train",
+  "n_tasks": 16,
+  "n_evals": 30,
+  "optimizer": "bo_scratch_multistart",
+  "output_root": "meta-bo-training/taf-gps",
+  "tasks": [
+    {
+      "task_name": "train_task_000",
+      "seed": 0,
+      "final_best": -0.4233393423118402
+    },
+    {
+      "task_name": "train_task_001",
+      "seed": 1,
+      "final_best": -0.4319208331544017
+    },
+    {
+      "task_name": "train_task_002",
+      "seed": 2,
+      "final_best": -0.3919646675460414
+    },
+    {
+      "task_name": "train_task_003",
+      "seed": 3,
+      "final_best": -0.40713834377903635
+    },
+    {
+      "task_name": "train_task_004",
+      "seed": 4,
+      "final_best": -2.0017107995148646
+    },
+    {
+      "task_name": "train_task_005",
+      "seed": 5,
+      "final_best": -0.40112314375628777
+    },
+    {
+      "task_name": "train_task_006",
+      "seed": 6,
+      "final_best": -0.3873348844161781
+    },
+    {
+      "task_name": "train_task_007",
+      "seed": 7,
+      "final_best": -0.40279645106103595
+    },
+    {
+      "task_name": "train_task_008",
+      "seed": 8,
+      "final_best": -0.3919384440934801
+    },
+    {
+      "task_name": "train_task_009",
+      "seed": 9,
+      "final_best": -0.36395597911266814
+    },
+    {
+      "task_name": "train_task_010",
+      "seed": 10,
+      "final_best": -0.382872132167305
+    },
+    {
+      "task_name": "train_task_011",
+      "seed": 11,
+      "final_best": -0.36731519670475166
+    },
+    {
+      "task_name": "train_task_012",
+      "seed": 12,
+      "final_best": -0.39171817432217615
+    },
+    {
+      "task_name": "train_task_013",
+      "seed": 13,
+      "final_best": -0.41635812040152825
+    },
+    {
+      "task_name": "train_task_014",
+      "seed": 14,
+      "final_best": -0.43686880662965466
+    },
+    {
+      "task_name": "train_task_015",
+      "seed": 15,
+      "final_best": -0.4599662394280259
+    }
+  ]
+}

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import numpy as np
 import yaml
@@ -35,6 +38,8 @@ class BOServerRuntimeConfig:
     n_iter_default: int = 25
     num_restarts_default: int = 5
     raw_samples_default: int = 64
+    auto_save_scratch_artifacts: bool = False
+    scratch_artifacts_dir: str = "meta-bo-training/server-scratch-artifacts"
 
     @classmethod
     def from_yaml_file(cls, path: str | Path) -> "BOServerRuntimeConfig":
@@ -74,6 +79,15 @@ class BOServerRuntimeConfig:
             n_iter_default=int(payload.get("n_iter_default", 25)),
             num_restarts_default=int(payload.get("num_restarts_default", 5)),
             raw_samples_default=int(payload.get("raw_samples_default", 64)),
+            auto_save_scratch_artifacts=bool(
+                payload.get("auto_save_scratch_artifacts", False)
+            ),
+            scratch_artifacts_dir=str(
+                payload.get(
+                    "scratch_artifacts_dir",
+                    "meta-bo-training/server-scratch-artifacts",
+                )
+            ),
         )
 
 
@@ -90,6 +104,10 @@ class BOServerSession:
     pending_x: np.ndarray | None = None
     y_min: float = float("-inf")
     y_max: float = float("inf")
+    auto_save_scratch_artifacts: bool = False
+    scratch_artifacts_dir: str = "meta-bo-training/server-scratch-artifacts"
+    task_name: str = "task"
+    _saved_artifacts: bool = False
 
     @classmethod
     def from_start_message(
@@ -112,6 +130,16 @@ class BOServerSession:
         optimizer_name = str(payload.get("optimizer", runtime_config.optimizer))
         if optimizer_name not in {"bo_botorch", "bo_scratch"}:
             raise ValueError("optimizer must be 'bo_botorch' or 'bo_scratch'.")
+
+        raw_task_name = payload.get("task_name")
+        if raw_task_name is None:
+            ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            task_name = f"task_{ts}_{uuid4().hex[:8]}"
+        else:
+            candidate = str(raw_task_name).strip()
+            if not candidate:
+                raise ValueError("task_name must be non-empty when provided.")
+            task_name = candidate
 
         if optimizer_name == "bo_botorch":
             config = BoTorchConfig(
@@ -147,7 +175,53 @@ class BOServerSession:
             n_init=n_init,
             y_min=runtime_config.y_min,
             y_max=runtime_config.y_max,
+            auto_save_scratch_artifacts=runtime_config.auto_save_scratch_artifacts,
+            scratch_artifacts_dir=runtime_config.scratch_artifacts_dir,
+            task_name=task_name,
         )
+
+    def _safe_task_name(self) -> str:
+        return re.sub(r"[^A-Za-z0-9_.-]+", "_", self.task_name)
+
+    def _persist_scratch_artifacts_if_enabled(self, result: Any) -> None:
+        if self.optimizer_name != "bo_scratch":
+            return
+        if not self.auto_save_scratch_artifacts or self._saved_artifacts:
+            return
+        if result.x_obs.shape[0] == 0:
+            return
+
+        run_dir = Path(self.scratch_artifacts_dir)
+        trajectories_dir = run_dir / "trajectories"
+        gp_states_dir = run_dir / "gp_states"
+        trajectories_dir.mkdir(parents=True, exist_ok=True)
+        gp_states_dir.mkdir(parents=True, exist_ok=True)
+
+        task_name = self._safe_task_name()
+        traj_payload = {
+            "task_name": task_name,
+            "n_points": int(result.y_obs.shape[0]),
+            "x_values": [[float(v) for v in row] for row in result.x_obs],
+            "y_values": [float(v) for v in result.y_obs],
+            "best_so_far": [float(v) for v in np.maximum.accumulate(result.y_obs)],
+            "final_best": float(np.max(result.y_obs)),
+        }
+        gp_payload = {
+            "task_name": task_name,
+            "optimizer": "bo_scratch_server",
+            "n_init": int(self.n_init),
+            "n_iter": int(self.n_iter),
+            "gp_state": result.final_gp_state,
+        }
+        (trajectories_dir / f"{task_name}.json").write_text(
+            json.dumps(traj_payload, indent=2),
+            encoding="utf-8",
+        )
+        (gp_states_dir / f"{task_name}.json").write_text(
+            json.dumps(gp_payload, indent=2),
+            encoding="utf-8",
+        )
+        self._saved_artifacts = True
 
     def _next_suggestion(self) -> dict[str, Any]:
         if self.init_count < self.n_init:
@@ -174,6 +248,7 @@ class BOServerSession:
 
     def _done_payload(self) -> dict[str, Any]:
         result = self.optimizer.result()
+        self._persist_scratch_artifacts_if_enabled(result)
         best_idx = int(np.argmax(result.y_obs))
         return {
             "type": "done",
@@ -189,6 +264,7 @@ class BOServerSession:
     def _stopped_payload(self, reason: str) -> dict[str, Any]:
         """Build stop payload with current partial optimization state."""
         result = self.optimizer.result()
+        self._persist_scratch_artifacts_if_enabled(result)
         best_value: float | None = None
         best_x: list[float] | None = None
         if result.y_obs.size > 0:

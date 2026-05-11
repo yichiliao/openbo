@@ -230,6 +230,8 @@ def _plot_mean_std(
     title: str,
     ylabel: str,
     output_path: Path,
+    *,
+    line_colors: dict[str, str | None] | None = None,
 ) -> None:
     """Plot mean and standard deviation bands from trajectory matrices."""
     plt.figure(figsize=(9, 5))
@@ -238,7 +240,10 @@ def _plot_mean_std(
         y_mean = np.mean(y_mat, axis=0)
         y_std = np.std(y_mat, axis=0)
         iterations = np.arange(1, y_mean.shape[0] + 1)
-        color = METHOD_COLORS.get(method, None)
+        if line_colors is not None and method in line_colors:
+            color = line_colors[method]
+        else:
+            color = METHOD_COLORS.get(method, None)
         plt.plot(
             iterations,
             y_mean,
@@ -266,10 +271,19 @@ def _plot_mean_std(
     plt.close()
 
 
-def _load_from_stored_trajectories(
+def load_family_benchmark_run_dir(
     run_dir: Path,
-) -> tuple[str, str, dict[str, np.ndarray], dict[str, np.ndarray]]:
-    """Load one method's trajectories from disk and return plot matrices."""
+) -> tuple[str, str, np.ndarray, np.ndarray]:
+    """Load one ``run_family_benchmark.py`` output directory from disk.
+
+    Expects ``summary.json`` plus one ``*.json`` per task (excluding ``summary.json``),
+    each with ``y_values``, ``best_so_far``, and ``optimal_value`` (same layout as
+    ``_load_from_stored_trajectories``).
+
+    Returns:
+        ``(summary_method, base_function, raw_log_regret_mat, best_log_regret_mat)``
+        where the matrices have shape ``(n_tasks, n_steps)``.
+    """
     summary_path = run_dir / "summary.json"
     if not summary_path.exists():
         raise ValueError(f"Missing summary.json in trajectory run dir: {run_dir}")
@@ -299,8 +313,16 @@ def _load_from_stored_trajectories(
         raw_rows.append(_to_log_regret(y, float(optimum)))
         best_rows.append(_to_log_regret(y_best, float(optimum)))
 
-    method_to_y_mat = {method: np.stack(raw_rows, axis=0)}
-    method_to_best_mat = {method: np.stack(best_rows, axis=0)}
+    return method, base_function, np.stack(raw_rows, axis=0), np.stack(best_rows, axis=0)
+
+
+def _load_from_stored_trajectories(
+    run_dir: Path,
+) -> tuple[str, str, dict[str, np.ndarray], dict[str, np.ndarray]]:
+    """Load one method's trajectories from disk and return plot matrices."""
+    method, base_function, raw_mat, best_mat = load_family_benchmark_run_dir(run_dir)
+    method_to_y_mat = {method: raw_mat}
+    method_to_best_mat = {method: best_mat}
     return method, base_function, method_to_y_mat, method_to_best_mat
 
 

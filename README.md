@@ -361,6 +361,31 @@ uv run python scripts/plot_family_results.py \
   --results-dir test_results
 ```
 
+That mode plots **one** method per invocation (the method recorded in `summary.json`).
+
+**Combine several prior `run_family_benchmark.py` runs** (same task family and length) into **one** figure matching `plot_family_results.py` styling—each run gets a legend name you choose (`folder_or_path:label`). Add **as many `--run` lines as you want** (two, three, or more methods on the same plot).
+
+```bash
+uv run python scripts/plot_family_from_benchmark_runs.py \
+  --results-dir test_results \
+  --plot-id compare_botorch_random \
+  --run default_bo_botorch_branin_all:botorch \
+  --run default_random_branin_all:random
+```
+
+or 
+
+```bash
+uv run python scripts/plot_family_from_benchmark_runs.py \
+  --results-dir test_results \
+  --plot-id compare_three \
+  --run default_bo_scratch_multistart_branin_all:scratch \
+  --run default_bo_botorch_branin_all:botorch \
+  --run default_random_branin_all:random
+```
+
+Relative names resolve to `test_results/trajectories/<name>/`. Pass absolute paths if the runs live elsewhere. If trajectory lengths differ, the script trims to a common length and prints a warning. Optional `--output` / `--output-best-so-far` set explicit PNG paths.
+
 ## 4. Meta-BO training and testing
 
 Here we describe the **meta-BO loop** in-repo: define a task family and split, train on source tasks (e.g. scratch BO saving GPs and trajectories), then evaluate transfer methods such as TAF on held-out tasks using the same benchmark scripts as §2–3.
@@ -958,54 +983,41 @@ We thoroughly compared the performance of our BO, implemented from scratch (`bo_
 
 ## 9. Project structure
 
-- `README.md` - project overview and usage.
+- `README.md` - project overview, workflows, and command examples.
 - `pyproject.toml` - dependencies, build config, and project metadata.
 - `configs/` - YAML configs and reusable artifacts.
   - `benchmark.yaml` - default benchmark config.
   - `methods/*.yaml` - method-level config placeholders.
   - `family_splits/*.json` - persisted train/test task-family splits.
-  - `server_optimizers/*.yaml` - server runtime configs (e.g. input dimension and y-range constraints).
-- `src/openbo/` - main package (`import openbo`; the installable distribution name in `pyproject.toml` is `open-bo`, which `uv` maps to `openbo` via `[tool.uv.build-backend] module-name`).
-  - `test_functions/synthetic.py` - synthetic objectives + optional Gaussian output noise and optimum capping.
-  - `test_functions/transforms.py` - input transform helpers.
-  - `test_functions/tasks.py` - task-variant spec + affine input/output wrappers (including variant-level noise/capping).
-  - `test_functions/registry.py` - function metadata registry + optional noisy wrappers for single-function specs.
-  - `test_functions/families.py` - family variant generation, train/test split, and split persistence.
-  - `models/gp_scratch.py` - scratch GP with ARD kernels and per-step hyperparameter fitting.
-  - `models/kernels.py` - RBF and Matérn-5/2 ARD kernels.
-  - `models/botorch_gp.py`, `models/preference_gp.py` - placeholder model modules.
-  - `acquisition/ei.py` - Expected Improvement implementations.
-  - `acquisition/pi.py`, `acquisition/ucb.py`, `acquisition/taf.py`, `acquisition/conbo.py`, `acquisition/naf.py`, `acquisition/preference_acq.py` - placeholder acquisition modules.
-  - `optimizers/random_search.py` - random-search baseline.
-  - `optimizers/bo_scratch.py` - scratch BO loop (Sobol candidate scans + multistart L-BFGS-B EI maximization).
-  - `optimizers/bo_botorch.py` - BoTorch BO loop (`SingleTaskGP` + `LogExpectedImprovement`).
-  - `server_optimizers/bo_server.py` - generic WebSocket server adapter for ask/tell optimization backends (`bo_botorch` and `bo_scratch`).
-  - `server_optimizers/bo_taf_server.py` - dedicated WebSocket server adapter for TAF ask/tell optimization (`bo_taf`).
-  - `optimizers/taf.py`, `optimizers/conbo.py`, `optimizers/naf.py`, `optimizers/pbo.py`, `optimizers/taf_pbo.py` - placeholder optimizer modules.
-  - `benchmarks/runner.py` - single-function benchmark runner used by CLI scripts.
-  - `benchmarks/seeds.py` - reproducibility helpers.
-  - `benchmarks/metrics.py`, `benchmarks/plotting.py` - placeholder benchmark utilities.
-- `scripts/` - command-line entrypoints.
-  - `run_benchmark.py` - run one method on one function; supports `--noisy`, optional 2D x-location plotting, and TAF methods (`bo_taf_m`, `bo_taf_r`).
-  - `plot_results.py` - single-function multi-method comparison plots (rerun or from stored trajectories), with optional `--noisy` rerun mode and TAF methods.
-  - `create_family_split.py` - create and save train/test split for a task family.
-  - `run_family_benchmark.py` - run one method across family tasks and save per-task trajectories; supports `--noisy`, TAF methods, and multi-mode TAF runs.
-  - `plot_family_results.py` - family mean/std and best-so-far plots across methods (rerun or from stored trajectories); supports `--noisy` in rerun mode and TAF methods.
-  - `plot_taf_gp_predictions.py` - render 2D GP mean/std heatmaps from saved TAF source-task GP states and trajectories.
-  - `plot_taf_acquisition_heatmap.py` - visualize stored TAF acquisition query values and zero-mask behavior per iteration.
+  - `server_optimizers/*.yaml` - runtime configs for BO servers (e.g. `input_dim`, `y_range`, TAF defaults).
+- `src/openbo/` - main package (`import openbo`; distribution name is `open-bo`).
+  - `test_functions/` - synthetic objectives, transforms, family/task variants, and registry utilities.
+  - `models/` - GP implementations and kernels (`gp_scratch.py`, `kernels.py`, plus placeholders).
+  - `acquisition/` - EI + TAF acquisition logic and placeholder acquisition modules.
+  - `optimizers/` - implemented optimizers (`random_search`, `bo_scratch`, `bo_botorch`, `bo_taf`) plus placeholders.
+  - `server_optimizers/` - WebSocket-facing session adapters for generic BO (`bo_server.py`) and TAF (`bo_taf_server.py`).
+  - `benchmarks/` - benchmark runner + reproducibility helpers (and placeholder metrics/plotting modules).
+- `scripts/` - local benchmark/training/plot entrypoints.
+  - `run_benchmark.py` - run one method on one function; optional `--noisy` and 2D x-location plot.
+  - `plot_results.py` - single-function multi-method log-regret plots (rerun or stored trajectories).
+  - `create_family_split.py` - create and save train/test splits for task families.
+  - `run_family_benchmark.py` - run one method across a task family and save per-task trajectories.
+  - `plot_family_results.py` - family mean/std and best-so-far log-regret plots.
+  - `plot_family_from_benchmark_runs.py` - merge any number of saved `run_family_benchmark.py` run folders into one comparison plot (custom legend labels per `--run`).
+    - `train_taf.py` - produce TAF source artifacts (`trajectories/`, `gp_states/`) from training tasks.
+  - `plot_taf_gp_predictions.py` - 2D GP mean/std heatmaps from saved TAF run artifacts.
+  - `plot_taf_acquisition_heatmap.py` - visualize stored TAF acquisition query values by iteration.
+  - `run_botorch_fake_client.py` - toy client loop for BoTorch-oriented external-objective testing.
   - `aggregate_results.py` - placeholder aggregation script.
-- `server_scripts/` - server-oriented command-line entrypoints.
-  - `run_bo_server.py` - run generic WebSocket server for external ask/tell optimization (`bo_botorch` or `bo_scratch` via config/start message).
-  - `run_fake_client.py` - fake Branin client that exercises the server suggest/observe loop; optional `--plot-x-locations` (2D, same style as `run_benchmark.py`).
-  - `run_family_scratch_then_taf_demo.py` - standalone demo: `create_family_split.py` (15 Branin variants, 9 train / 6 test), scratch server to save source GPs, then TAF server on test variants.
-  - `run_manual_family_train_clients.py` - README §4c Step 4: one websocket session per train variant from a saved split (for use with `run_bo_server` + auto-save).
-  - `run_manual_family_test_clients.py` - README §4c Step 7: one session per test variant (for use with `run_taf_server`); optional `--save-results-dir` for Step 8 plots.
-  - `plot_manual_family_trajectories.py` - README §4c Step 8: plot log10(regret) (same definition as `plot_family_results`) from train `trajectories/*.json` and/or saved test session JSON; requires `--split-path` for optima; default **mean ± 1 std** on one panel (style-aligned with `plot_family_results`).
-- `tests/` - test suite.
-  - `test_functions_test.py` - synthetic functions, variants, and family split persistence tests.
-  - `gp_scratch_test.py` - scratch GP fit/posterior tests.
-  - `acquisition_test.py` - EI tests and BO smoke tests.
-- `notebooks/` - teaching notebooks for BO concepts and step-by-step demos.
+- `server_scripts/` - server and WebSocket client helpers for ask/tell workflows.
+  - `run_bo_server.py` - generic BO server (`bo_botorch` or `bo_scratch`) via config/start message.
+  - `run_taf_server.py` - dedicated TAF server.
+  - `run_fake_client.py` - fake Branin client; optional 2D x-location plotting.
+  - `run_manual_family_train_clients.py` - one session per train variant against scratch server.
+  - `run_manual_family_test_clients.py` - one session per test variant against TAF server; optional saved JSON per session.
+  - `plot_manual_family_trajectories.py` - manual-workflow regret plotting from saved train/test trajectory artifacts.
+- `tests/` - test suite for objectives, GP/acquisition behavior, benchmark paths, and server logic.
+- `notebooks/` - teaching notebooks for BO concepts and interactive demos.
 
 ## Contact
 

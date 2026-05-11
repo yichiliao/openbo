@@ -65,7 +65,7 @@ uv run pytest
 
 ## 2. Single-function workflow
 
-**Purpose:** Run and compare optimizers on a **single** named test function (e.g. Branin): command-line benchmarks, trajectory JSON, optional noise and 2D search plots, and log-regret figures via `plot_results.py`.
+We build everything from here: Run and compare optimizers on a **single** named test function (e.g. Branin): command-line benchmarks, trajectory JSON, optional noise and 2D search plots, and log-regret figures via `plot_results.py`.
 
 Run one benchmark on a single base function (default: `branin`).
 
@@ -247,7 +247,7 @@ Tip:
 
 ## 3. Family-of-functions workflow
 
-**Purpose:** Work with **many related tasks** (variants of one base function): run one method across the family, save per-task trajectories, create persistent train/test splits, and plot mean/std log-regret with `plot_family_results.py`.
+Before starting meta-learning or transfer learning, we need to create the settings for such tasks. Importantly, we need to work with **many related tasks** (variants of one base function): run one method across the family, save per-task trajectories, create persistent train/test splits, and plot mean/std log-regret with `plot_family_results.py`.
 
 Run one method across a family of Branin variants:
 
@@ -346,7 +346,7 @@ uv run python scripts/plot_family_results.py \
 
 ## 4. Meta-BO training and testing
 
-**Purpose:** Describe the **meta-BO loop** in-repo: define a task family and split, train on source tasks (e.g. scratch BO saving GPs and trajectories), then evaluate transfer methods such as TAF on held-out tasks using the same benchmark scripts as §2–3.
+Here we describe the **meta-BO loop** in-repo: define a task family and split, train on source tasks (e.g. scratch BO saving GPs and trajectories), then evaluate transfer methods such as TAF on held-out tasks using the same benchmark scripts as §2–3.
 
 Generally meta-Bayesian optimization workflow follows these three steps:
 - Step 1: Generate a family of tasks using the same base function, and then split the training tasks and testing tasks.
@@ -454,7 +454,7 @@ Notes:
 
 ## 5. Server-based Optimization Workflow
 
-**Purpose:** Run the same BO backends **over WebSockets** when your objective lives outside this process (simulator, service, or other language): start a server, speak the JSON ask/tell protocol, and use the included fake client for a quick smoke test.
+Here, we provide the server-based interface for any systems to communicate with our optimizers via WebSOckets. With the steps below, you can run the same BO backends **over WebSockets** when your objective lives outside this process (simulator, service, or other language): start a server, speak the JSON ask/tell protocol, and use the included fake client for a quick smoke test. 
 
 OpenBO supports a server-style optimization loop for external applications
 that evaluate candidate designs outside this Python process.
@@ -672,7 +672,7 @@ Use `--plot-output path/to/plot.png` to choose the PNG path; Branin is assumed (
 
 ## 6. End-to-end TAF workflow: family split → scratch GPs → TAF
 
-**Purpose:** Walk through the **manual** end-to-end pipeline for transfer BO: create a split, train source tasks through the scratch server (saving `gp_states/` and `trajectories/`), point the TAF server at that run directory, optimize test tasks, and optionally plot regret—substituting your own client where the examples use Branin or family helpers.
+Tutorial and example of using TAF for your own applications. Walk through the **manual** end-to-end pipeline for transfer BO: create a split, train source tasks through the scratch server (saving `gp_states/` and `trajectories/`), point the TAF server at that run directory, optimize test tasks, and optionally plot regret—substituting your own client where the examples use Branin or family helpers. 
 
 ### Step 1. Create a train/test split
 
@@ -910,8 +910,6 @@ Architecture note:
 
 ## 7. Results folder convention
 
-**Purpose:** Document the **default directory layout** for trajectories and plots (`test_results/` vs custom `--results-dir`) so runs stay organized and archived benchmarks are easy to find.
-
 By default, artifacts are organized under `test_results/`:
 
 - `test_results/trajectories/`
@@ -942,8 +940,6 @@ We thoroughly compared the performance of our BO, implemented from scratch (`bo_
 
 
 ## 9. Project structure
-
-**Purpose:** Provide a **concise map** of the repository—configs, `src/openbo`, scripts, server entrypoints, tests, and notebooks—so you know where to change code or add experiments.
 
 - `README.md` - project overview and usage.
 - `pyproject.toml` - dependencies, build config, and project metadata.
@@ -995,7 +991,5 @@ We thoroughly compared the performance of our BO, implemented from scratch (`bo_
 - `notebooks/` - teaching notebooks for BO concepts and step-by-step demos.
 
 ## Contact
-
-**Purpose:** Maintainer and email for questions about this repository or collaboration.
 
 This repo is created and maintained by Yi-Chi Liao (yichi.liao@inf.ethz.ch).

@@ -37,6 +37,7 @@ def compute_taf_m_weights(
     source_meta_features: NDArray[np.float64],
     target_meta_features: NDArray[np.float64],
     rho: float,
+    eps: float = 1e-12,
 ) -> NDArray[np.float64]:
     """Compute source-task TAF-M weights from meta-feature distance."""
     source_meta_features = np.asarray(source_meta_features, dtype=np.float64)
@@ -49,14 +50,40 @@ def compute_taf_m_weights(
     if source_meta_features.shape[1] != target_meta_features.shape[0]:
         raise ValueError("source and target meta-features must have same dimension.")
 
+    
+    #distances = np.linalg.norm(
+    #    source_meta_features - target_meta_features[None, :],
+    #    axis=1,
+    #)
+    #return np.array(
+    #    [epanechnikov_weight(float(dist), rho) for dist in distances],
+    #    dtype=np.float64,
+    #)
+    
+    # Normalize meta-features before distance.
+    all_features = np.vstack([source_meta_features, target_meta_features[None, :]])
+    mean = np.mean(all_features, axis=0)
+    std = np.std(all_features, axis=0)
+    std[std < eps] = 1.0
+
+    source_scaled = (source_meta_features - mean) / std
+    target_scaled = (target_meta_features - mean) / std
+
     distances = np.linalg.norm(
-        source_meta_features - target_meta_features[None, :],
+        source_scaled - target_scaled[None, :],
         axis=1,
     )
-    return np.array(
+
+    weights = np.array(
         [epanechnikov_weight(float(dist), rho) for dist in distances],
         dtype=np.float64,
     )
+
+    # Fallback if every source is outside the Epanechnikov bandwidth.
+    if weights.sum() <= eps:
+        return np.ones(source_meta_features.shape[0], dtype=np.float64) / source_meta_features.shape[0]
+
+    return weights / weights.sum()
 
 
 def compute_taf_r_weights(

@@ -671,19 +671,19 @@ This writes `test_results/trajectories/fake_client_taf_done_x_locations.png` nex
 (same 2D heatmap + iteration-colored points as `scripts/run_benchmark.py --plot-x-locations`).
 Use `--plot-output path/to/plot.png` to choose the PNG path; Branin is assumed (`input_dim: 2`).
 
-### 5) Manual workflow: family split → scratch GPs → TAF (without the demo script)
+### 5) End-to-end workflow: family split → scratch GPs → TAF 
 
-**Step 1 — Create a train/test split (15 train / 5 test for 20 tasks at 0.75 ratio)**
+**Step 1 — Create a train/test split**
 
 From the repo root:
 
 ```bash
 uv run python scripts/create_family_split.py \
   --base-function branin \
-  --n-tasks 20 \
-  --train-ratio 0.75 \
+  --n-tasks 15 \
+  --train-ratio 0.8 \
   --family-seed 0 \
-  --output configs/family_splits/branin_split_20.json
+  --output configs/family_splits/branin_split_15.json
 ```
 
 The command prints `n_train` and `n_test` (expect 9 and 6). The JSON contains
@@ -699,14 +699,14 @@ under `gp_states/` and `trajectories/` inside that directory). Example:
 optimizer: bo_scratch
 input_dim: 2
 y_range: [-350.0, 1.0]
-n_init_default: 2
-n_iter_default: 8
+n_init_default: 5
+n_iter_default: 25
 auto_save_scratch_artifacts: true
-scratch_artifacts_dir: meta-bo-training/my_manual_taf_run
+scratch_artifacts_dir: meta-bo-training/taf-gps/branin_server_end_to_end
 ```
 
-Save it as e.g. `configs/server_optimizers/bo_server_scratch_manual.yaml` and create
-`meta-bo-training/my_manual_taf_run` if you want an empty parent folder (the server
+Save it as e.g. `configs/server_optimizers/bo_taf_server_train_end_to_end.yaml` and create
+`meta-bo-training/taf-gps/branin_server_end_to_end` if you want an empty parent folder (the server
 creates `gp_states` and `trajectories` on first save).
 
 **Step 3 — Start the generic BO server (scratch) and keep it running**
@@ -717,7 +717,7 @@ Pick ports that are free (if `8767` is already in use, choose another port).
 uv run python server_scripts/run_bo_server.py \
   --host 127.0.0.1 \
   --port 8767 \
-  --config-path configs/server_optimizers/bo_server_scratch_manual.yaml
+  --config-path configs/server_optimizers/bo_taf_server_train_end_to_end.yaml
 ```
 
 **Step 4 — Run one WebSocket client per **training** variant (9 sessions)**
@@ -737,7 +737,7 @@ use port `8765`):
 
 ```bash
 uv run python server_scripts/run_manual_family_train_clients.py \
-  --split-path configs/family_splits/branin_split_20.json \
+  --split-path configs/family_splits/branin_split_15.json \
   --uri ws://127.0.0.1:8767 \
   --n-init 5 \
   --n-iter 25 \
@@ -748,8 +748,15 @@ Implementation: `server_scripts/run_manual_family_train_clients.py` (loads the s
 builds train specs with prefix `train_task`, sends `task_name` per session).
 
 After all nine sessions, you should see nine files under
-`meta-bo-training/my_manual_taf_run/gp_states/` (and matching files under
+`meta-bo-training/taf-gps/branin_server_end_to_end/gp_states/` (and matching files under
 `trajectories/`).
+
+You can optionally visualize GP predictions as 2D heatmaps (mean/std):
+
+```bash
+uv run python scripts/plot_taf_gp_predictions.py \
+  --run-dir meta-bo-training/taf-gps/branin_server_end_to_end
+```
 
 **Step 5 — Stop the scratch server**
 
@@ -763,7 +770,7 @@ Set `taf_run_dir` in your TAF server YAML to the **same** directory you used for
 with:
 
 ```yaml
-taf_run_dir: meta-bo-training/my_manual_taf_run
+taf_run_dir: meta-bo-training/branin_server_end_to_end
 ```
 
 Start the TAF server on a **different** port if you will run it on the same machine
@@ -773,7 +780,7 @@ immediately after the scratch server (for example `8766`):
 uv run python server_scripts/run_taf_server.py \
   --host 127.0.0.1 \
   --port 8766 \
-  --config-path configs/server_optimizers/bo_taf_server_manual.yaml
+  --config-path configs/server_optimizers/bo_taf_server_test_end_to_end.yaml
 ```
 
 **Step 7 — Run one client per **test** variant (5 sessions)**
@@ -784,12 +791,12 @@ prefix when building specs (names `test_task_000` … `test_task_005`).
 
 ```bash
 uv run python server_scripts/run_manual_family_test_clients.py \
-  --split-path configs/family_splits/branin_split_20.json \
+  --split-path configs/family_splits/branin_split_15.json \
   --uri ws://127.0.0.1:8766 \
   --n-init 0 \
   --n-iter 30 \
   --seed-base 100 \
-  --save-results-dir test_results/manual_family/test_sessions
+  --save-results-dir test_results/branin_server_end_to_end/test_sessions
 ```
 
 The optional `--save-results-dir` writes one JSON file per test session (the terminal
@@ -828,10 +835,10 @@ and **test** (TAF) on the same axes when both directories are given.
 
 ```bash
 uv run python server_scripts/plot_manual_family_trajectories.py \
-  --split-path configs/family_splits/branin_split_20.json \
-  --train-trajectories-dir meta-bo-training/my_manual_taf_run/trajectories \
-  --test-results-dir test_results/manual_family/test_sessions \
-  --output test_results/manual_family/log_regret_mean_std.png
+  --split-path configs/family_splits/branin_split_15.json \
+  --train-trajectories-dir meta-bo-training/taf-gps/branin_server_end_to_end/trajectories \
+  --test-results-dir test_results/branin_server_end_to_end/test_sessions \
+  --output test_results/branin_server_end_to_end/log_regret_mean_std.png
 ```
 
 **Per-task curves** (optional):
@@ -839,8 +846,8 @@ uv run python server_scripts/plot_manual_family_trajectories.py \
 ```bash
 uv run python server_scripts/plot_manual_family_trajectories.py \
   --split-path configs/family_splits/branin_split_15.json \
-  --train-trajectories-dir meta-bo-training/my_manual_taf_run/trajectories \
-  --test-results-dir test_results/manual_family/test_sessions \
+  --train-trajectories-dir meta-bo-training/branin_server_end_to_end/trajectories \
+  --test-results-dir test_results/branin_server_end_to_end/test_sessions \
   --plot-mode per_task \
   --output test_results/manual_family/log_regret_per_task.png
 ```

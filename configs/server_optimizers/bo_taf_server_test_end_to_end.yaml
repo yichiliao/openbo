@@ -5,11 +5,11 @@ y_range: [-350.0, 1.0]
 
 # Path to source surrogates produced by TAF training
 # (must contain gp_states/*.json and trajectories/*.json).
-taf_run_dir: meta-bo-training/taf-gps/branin_train_v1
+taf_run_dir: meta-bo-training/taf-gps/branin_server_end_to_end
 
 # Optional defaults used when start message omits fields.
 n_init_default: 0
-n_iter_default: 10
+n_iter_default: 30
 n_candidates_default: 512
 n_starts_default: 8
 search_strategy_default: multistart

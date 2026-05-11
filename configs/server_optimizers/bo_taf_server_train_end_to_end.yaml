@@ -1,0 +1,7 @@
+optimizer: bo_scratch
+input_dim: 2
+y_range: [-350.0, 1.0]
+n_init_default: 5
+n_iter_default: 25
+auto_save_scratch_artifacts: true
+scratch_artifacts_dir: meta-bo-training/taf-gps/branin_server_end_to_end

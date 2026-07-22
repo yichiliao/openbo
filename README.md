@@ -1025,7 +1025,7 @@ OpenBO is licensed under the MIT License. See the [LICENSE](LICENSE) file for th
 
 ## Citation
 
-If you use OpenBO in your research, please cite:
+If you use OpenBO in your research, we strongly recommend you cite:
 
 ```bibtex
 @software{liao2026openbo,
@@ -1036,6 +1036,8 @@ If you use OpenBO in your research, please cite:
   url       = {https://github.com/yichiliao/openbo}
 }
 ```
+
+Citation of OpenBO helps support its continued development and enables reproducible research.
 
 ## Contact
 

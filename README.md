@@ -1019,6 +1019,24 @@ We thoroughly compared the performance of our BO, implemented from scratch (`bo_
 - `tests/` - test suite for objectives, GP/acquisition behavior, benchmark paths, and server logic.
 - `notebooks/` - teaching notebooks for BO concepts and interactive demos.
 
+## License
+
+OpenBO is licensed under the MIT License. See the [LICENSE](LICENSE) file for the full license text.
+
+## Citation
+
+If you use OpenBO in your research, please cite:
+
+```bibtex
+@software{liao2026openbo,
+  author    = {Yi-Chi Liao},
+  title     = {{OpenBO}: An Open-Source Library for Bayesian Optimization},
+  year      = {2026},
+  publisher = {GitHub},
+  url       = {https://github.com/yichiliao/openbo}
+}
+```
+
 ## Contact
 
 This repo is created and maintained by Yi-Chi Liao (yichi.liao@inf.ethz.ch).

@@ -18,6 +18,66 @@ from numpy.typing import NDArray
 Objective = Callable[[NDArray[np.float64]], NDArray[np.float64]]
 
 
+def _kernel_type_from_single_task_gp(model: SingleTaskGP) -> str:
+    """Map BoTorch/GPyTorch kernel class to scratch-style kernel_type string."""
+    covar = model.covar_module
+    if hasattr(covar, "base_kernel"):
+        covar = covar.base_kernel
+    name = type(covar).__name__.lower()
+    if "matern" in name:
+        return "matern52"
+    if "rbf" in name:
+        return "rbf"
+    return type(covar).__name__
+
+
+def _gp_state_from_single_task_gp(
+    model: SingleTaskGP,
+    *,
+    dim: int,
+    n_observations: int,
+) -> dict[str, object]:
+    """Serialize a fitted ``SingleTaskGP`` into scratch-compatible ``gp_state`` keys."""
+    covar = model.covar_module
+    base = covar.base_kernel if hasattr(covar, "base_kernel") else covar
+    lengthscale = np.asarray(base.lengthscale.detach().cpu(), dtype=np.float64).reshape(-1)
+
+    if hasattr(covar, "outputscale"):
+        variance = float(
+            np.asarray(covar.outputscale.detach().cpu(), dtype=np.float64).reshape(-1)[0]
+        )
+    else:
+        variance = 1.0
+
+    noise = float(np.asarray(model.likelihood.noise.detach().cpu(), dtype=np.float64).reshape(-1)[0])
+
+    ot = model.outcome_transform
+    if ot is not None and hasattr(ot, "means") and hasattr(ot, "stdvs"):
+        y_mean = float(np.asarray(ot.means.detach().cpu(), dtype=np.float64).reshape(-1)[0])
+        y_std = float(np.asarray(ot.stdvs.detach().cpu(), dtype=np.float64).reshape(-1)[0])
+        standardize_targets = True
+    else:
+        y_mean = 0.0
+        y_std = 1.0
+        standardize_targets = False
+
+    return {
+        "backend": "botorch",
+        "botorch_model": "SingleTaskGP",
+        "kernel_type": _kernel_type_from_single_task_gp(model),
+        "lengthscale": [float(v) for v in lengthscale],
+        "variance": variance,
+        "noise": noise,
+        "standardize_targets": standardize_targets,
+        "optimize_hyperparameters": True,
+        "optimize_noise": bool(getattr(model.likelihood.noise, "requires_grad", False)),
+        "y_mean": y_mean,
+        "y_std": y_std,
+        "n_observations": int(n_observations),
+        "dim": int(dim),
+    }
+
+
 @dataclass
 class BORunResult:
     """Container for BO observations and best-so-far trajectory."""
@@ -25,6 +85,7 @@ class BORunResult:
     x_obs: NDArray[np.float64]
     y_obs: NDArray[np.float64]
     best_y_history: NDArray[np.float64]
+    final_gp_state: dict[str, object]
 
 
 @dataclass
@@ -55,6 +116,18 @@ class BoTorchSequentialOptimizer:
         self.y_obs = np.empty((0,), dtype=np.float64)
         self.best_y_history: list[float] = []
 
+    def _fit_single_task_gp(self) -> SingleTaskGP:
+        """Fit a ``SingleTaskGP`` on unit-scaled training data (same as ``suggest``)."""
+        if self.x_obs.shape[0] == 0:
+            raise ValueError("Cannot fit GP without observations.")
+        x_obs_unit = (self.x_obs - self.lower) / self.scale
+        train_x = torch.tensor(x_obs_unit, dtype=torch.double)
+        train_y = torch.tensor(self.y_obs, dtype=torch.double).unsqueeze(-1)
+        model = SingleTaskGP(train_x, train_y, outcome_transform=Standardize(m=1))
+        mll = ExactMarginalLogLikelihood(model.likelihood, model)
+        fit_gpytorch_mll(mll)
+        return model
+
     def bootstrap(self, objective: Objective) -> None:
         """Collect random initial observations."""
         if self.config.n_init <= 0:
@@ -74,13 +147,8 @@ class BoTorchSequentialOptimizer:
         if self.x_obs.shape[0] == 0:
             raise ValueError("Cannot suggest without observations. Call bootstrap() first.")
 
-        x_obs_unit = (self.x_obs - self.lower) / self.scale
-        train_x = torch.tensor(x_obs_unit, dtype=torch.double)
+        model = self._fit_single_task_gp()
         train_y = torch.tensor(self.y_obs, dtype=torch.double).unsqueeze(-1)
-        model = SingleTaskGP(train_x, train_y, outcome_transform=Standardize(m=1))
-        mll = ExactMarginalLogLikelihood(model.likelihood, model)
-        fit_gpytorch_mll(mll)
-
         best_f = torch.max(train_y).item()
         acq = LogExpectedImprovement(model=model, best_f=best_f)
         bounds_t = torch.tensor(
@@ -116,10 +184,19 @@ class BoTorchSequentialOptimizer:
 
     def result(self) -> BORunResult:
         """Build run result from current state."""
+        if self.x_obs.shape[0] == 0:
+            raise ValueError("bo_botorch finished without any observations.")
+        model = self._fit_single_task_gp()
+        final_gp_state = _gp_state_from_single_task_gp(
+            model,
+            dim=self.d,
+            n_observations=int(self.x_obs.shape[0]),
+        )
         return BORunResult(
             x_obs=self.x_obs.astype(np.float64),
             y_obs=self.y_obs.astype(np.float64),
             best_y_history=np.asarray(self.best_y_history, dtype=np.float64),
+            final_gp_state=final_gp_state,
         )
 
 

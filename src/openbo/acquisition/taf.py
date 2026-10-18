@@ -187,7 +187,10 @@ def taf_m_acquisition(
         elif source_improvement_mode == "softplus":
             tau = float(max(source_improvement_temperature, 1e-12))
             # Smooth non-negative approximation of ReLU to reduce sparsity.
-            source_imp = tau * np.log1p(np.exp(delta / tau))
+            # exp overflows to inf above about 709; there softplus(z) equals z to machine
+            # precision. The clamp leaves every result that was finite before unchanged.
+            z = delta / tau
+            source_imp = tau * np.where(z > 700.0, z, np.log1p(np.exp(np.minimum(z, 700.0))))
         else:
             raise ValueError(
                 "source_improvement_mode must be 'relu' or 'softplus'."

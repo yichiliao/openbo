@@ -1,0 +1,2 @@
+method=mobo_botorch problem=dtlz1a seed=0 hypervolume=323945 pareto_size=4 seconds=338.2
+saved_trajectory=benchmark_results/mobo_2obj/trajectories/mobo_2obj_s0_mobo_botorch_dtlz1a.json

@@ -1,0 +1,73 @@
+% Papers that OpenBO implements or follows directly.
+% PDFs are not redistributed here; follow each entry's DOI or URL.
+
+% --- Transfer BO: TAF and TAF+ -------------------------------------------
+
+% Original TAF; the rule for TAF+ is to follow this paper where the two disagree.
+@article{wistuba2018taf,
+  author    = {Wistuba, Martin and Schilling, Nicolas and Schmidt-Thieme, Lars},
+  title     = {Scalable {G}aussian process-based transfer surrogates for hyperparameter optimization},
+  journal   = {Machine Learning},
+  volume    = {107},
+  number    = {1},
+  pages     = {43--78},
+  year      = {2018},
+  doi       = {10.1007/s10994-017-5684-y},
+  publisher = {Springer},
+}
+
+% TAF+ (optimizers/bo_taf_plus.py, docs/plans/taf_plus.md).
+@inproceedings{liao2024taf_plus_chi,
+  author    = {Liao, Yi-Chi and Desai, Ruta and Pierce, Alec M. and Taylor, Krista E. and Benko, Hrvoje and Jonker, Tanya R. and Gupta, Aakar},
+  title     = {A Meta-{B}ayesian Approach for Rapid Online Parametric Optimization for Wrist-based Interactions},
+  booktitle = {Proceedings of the CHI Conference on Human Factors in Computing Systems},
+  series    = {CHI '24},
+  pages     = {1--38},
+  year      = {2024},
+  doi       = {10.1145/3613904.3642071},
+  publisher = {ACM},
+}
+
+% --- Neural acquisition functions: MetaBO and its variant -----------------
+
+% NAF, original (roadmap item 1, docs/plans/naf.md).
+@inproceedings{volpp2020metabo,
+  author    = {Volpp, Michael and Fr{\"o}hlich, Lukas P. and Fischer, Kirsten and Doerr, Andreas and Falkner, Stefan and Hutter, Frank and Daniel, Christian},
+  title     = {Meta-Learning Acquisition Functions for Transfer Learning in {B}ayesian Optimization},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2020},
+  eprint    = {1904.02642},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/1904.02642},
+}
+
+% --- Continual BO ---------------------------------------------------------
+
+% ConBO (optimizers/conbo.py, docs/plans/conbo.md).
+@inproceedings{liao2025conbo_chi,
+  author    = {Liao, Yi-Chi and Streli, Paul and Li, Zhipeng and Gebhardt, Christoph and Holz, Christian},
+  title     = {Continual Human-in-the-Loop Optimization},
+  booktitle = {Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems},
+  series    = {CHI '25},
+  pages     = {1--26},
+  year      = {2025},
+  doi       = {10.1145/3706598.3713603},
+  publisher = {ACM},
+  eprint    = {2503.05405},
+  archivePrefix = {arXiv},
+}
+
+% --- Multi-objective BO ---------------------------------------------------
+
+% MOBO with correlated objectives, CEIPV (optimizers/mobo.py, docs/plans/mobo.md).
+@inproceedings{shah2016pareto,
+  author    = {Shah, Amar and Ghahramani, Zoubin},
+  title     = {Pareto Frontier Learning with Expensive Correlated Objectives},
+  booktitle = {Proceedings of the 33rd International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {48},
+  pages     = {1919--1927},
+  year      = {2016},
+  publisher = {PMLR},
+  url       = {https://proceedings.mlr.press/v48/shahc16.html},
+}

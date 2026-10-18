@@ -1,0 +1,111 @@
+src/openbo/test_functions/metabo_families.py:86: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  points = sampler.random(n_tasks + 1)[1:]
+training branin (metabo50) -> meta-bo-training/naf/branin_metabo50_v1_long
+src/openbo/acquisition/naf.py:148: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  cloud = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_local)
+src/openbo/acquisition/naf.py:148: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  cloud = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_local)
+src/openbo/acquisition/naf.py:148: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  cloud = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_local)
+src/openbo/acquisition/naf.py:148: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  cloud = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_local)
+src/openbo/acquisition/naf.py:148: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  cloud = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_local)
+src/openbo/acquisition/naf.py:148: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  cloud = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_local)
+src/openbo/acquisition/naf.py:148: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  cloud = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_local)
+iter 236: return=86.057 final_log10_regret=-3.403 entropy=3.958 seconds=62.6
+iter 237: return=78.064 final_log10_regret=-3.092 entropy=3.946 seconds=59.9
+iter 238: return=85.960 final_log10_regret=-3.353 entropy=3.987 seconds=64.3
+iter 239: return=85.122 final_log10_regret=-3.418 entropy=4.080 seconds=70.1
+iter 240: return=82.743 final_log10_regret=-3.311 entropy=4.019 seconds=71.2
+iter 241: return=81.855 final_log10_regret=-3.258 entropy=4.064 seconds=67.0
+iter 242: return=83.452 final_log10_regret=-3.319 entropy=4.018 seconds=68.7
+iter 243: return=82.398 final_log10_regret=-3.289 entropy=4.064 seconds=72.7
+iter 244: return=82.318 final_log10_regret=-3.310 entropy=4.114 seconds=77.3
+iter 245: return=86.457 final_log10_regret=-3.476 entropy=4.108 seconds=59.2
+iter 246: return=85.265 final_log10_regret=-3.400 entropy=4.150 seconds=59.5
+iter 247: return=86.475 final_log10_regret=-3.503 entropy=4.093 seconds=60.9
+iter 248: return=91.331 final_log10_regret=-3.673 entropy=4.150 seconds=63.6
+iter 249: return=88.557 final_log10_regret=-3.496 entropy=4.097 seconds=67.9
+iter 250: return=93.197 final_log10_regret=-3.697 entropy=4.031 seconds=67.0
+iter 251: return=89.320 final_log10_regret=-3.508 entropy=4.023 seconds=74.6
+iter 252: return=86.361 final_log10_regret=-3.423 entropy=4.041 seconds=80.1
+iter 253: return=89.212 final_log10_regret=-3.508 entropy=4.070 seconds=106.0
+iter 254: return=85.570 final_log10_regret=-3.525 entropy=4.097 seconds=91.0
+iter 255: return=87.391 final_log10_regret=-3.465 entropy=4.097 seconds=60.2
+iter 256: return=87.551 final_log10_regret=-3.571 entropy=4.101 seconds=61.9
+iter 257: return=89.242 final_log10_regret=-3.633 entropy=4.105 seconds=59.8
+iter 258: return=92.875 final_log10_regret=-3.751 entropy=4.136 seconds=62.6
+iter 259: return=88.765 final_log10_regret=-3.615 entropy=4.151 seconds=85.8
+iter 260: return=88.669 final_log10_regret=-3.617 entropy=4.167 seconds=86.7
+iter 261: return=84.915 final_log10_regret=-3.429 entropy=4.106 seconds=76.9
+iter 262: return=91.584 final_log10_regret=-3.681 entropy=4.213 seconds=98.0
+iter 263: return=83.611 final_log10_regret=-3.420 entropy=4.209 seconds=91.8
+iter 264: return=88.722 final_log10_regret=-3.582 entropy=4.229 seconds=83.7
+iter 265: return=89.816 final_log10_regret=-3.686 entropy=4.177 seconds=83.0
+iter 266: return=89.766 final_log10_regret=-3.523 entropy=4.237 seconds=83.8
+iter 267: return=89.868 final_log10_regret=-3.532 entropy=4.150 seconds=84.3
+iter 268: return=93.399 final_log10_regret=-3.770 entropy=4.213 seconds=82.5
+iter 269: return=90.260 final_log10_regret=-3.624 entropy=4.191 seconds=83.0
+iter 270: return=89.426 final_log10_regret=-3.567 entropy=4.151 seconds=91.0
+iter 271: return=80.338 final_log10_regret=-3.237 entropy=4.229 seconds=85.7
+iter 272: return=90.097 final_log10_regret=-3.519 entropy=4.243 seconds=86.9
+iter 273: return=88.873 final_log10_regret=-3.518 entropy=4.108 seconds=83.6
+iter 274: return=86.127 final_log10_regret=-3.440 entropy=4.244 seconds=82.9
+iter 275: return=90.369 final_log10_regret=-3.608 entropy=4.224 seconds=84.4
+iter 276: return=87.848 final_log10_regret=-3.557 entropy=4.231 seconds=86.4
+iter 277: return=82.789 final_log10_regret=-3.258 entropy=4.235 seconds=63.2
+iter 278: return=93.429 final_log10_regret=-3.662 entropy=4.222 seconds=53.5
+src/openbo/test_functions/metabo_families.py:86: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  points = sampler.random(n_tasks + 1)[1:]
+training branin (metabo50) -> meta-bo-training/naf/branin_metabo50_v1_long
+src/openbo/acquisition/naf.py:170: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  cloud = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_local)
+src/openbo/acquisition/naf.py:170: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  cloud = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_local)
+src/openbo/acquisition/naf.py:170: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  cloud = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_local)
+src/openbo/acquisition/naf.py:170: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  cloud = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_local)
+src/openbo/acquisition/naf.py:170: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  cloud = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_local)
+src/openbo/acquisition/naf.py:170: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  cloud = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_local)
+src/openbo/acquisition/naf.py:170: UserWarning: The balance properties of Sobol' points require n to be a power of 2.
+  cloud = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_local)
+iter 279: return=83.144 final_log10_regret=-3.335 entropy=4.166 seconds=53.1
+iter 280: return=88.853 final_log10_regret=-3.530 entropy=4.176 seconds=51.7
+iter 281: return=91.270 final_log10_regret=-3.588 entropy=4.246 seconds=50.3
+iter 282: return=91.281 final_log10_regret=-3.616 entropy=4.251 seconds=50.2
+iter 283: return=84.266 final_log10_regret=-3.375 entropy=4.302 seconds=49.9
+iter 284: return=88.439 final_log10_regret=-3.571 entropy=4.167 seconds=51.2
+iter 285: return=89.868 final_log10_regret=-3.608 entropy=4.248 seconds=50.7
+iter 286: return=92.452 final_log10_regret=-3.660 entropy=4.209 seconds=51.7
+iter 287: return=87.233 final_log10_regret=-3.514 entropy=4.236 seconds=55.0
+iter 288: return=94.752 final_log10_regret=-3.783 entropy=4.328 seconds=55.9
+iter 289: return=94.904 final_log10_regret=-3.709 entropy=4.374 seconds=55.5
+iter 290: return=92.378 final_log10_regret=-3.586 entropy=4.395 seconds=55.5
+iter 291: return=86.989 final_log10_regret=-3.451 entropy=4.461 seconds=54.0
+iter 292: return=87.328 final_log10_regret=-3.400 entropy=4.451 seconds=55.0
+iter 293: return=83.931 final_log10_regret=-3.357 entropy=4.470 seconds=71.1
+iter 294: return=90.276 final_log10_regret=-3.538 entropy=4.448 seconds=83.2
+iter 295: return=81.425 final_log10_regret=-3.176 entropy=4.412 seconds=71.4
+iter 296: return=80.391 final_log10_regret=-3.160 entropy=4.461 seconds=75.3
+iter 297: return=90.445 final_log10_regret=-3.580 entropy=4.476 seconds=95.6
+iter 298: return=95.896 final_log10_regret=-3.791 entropy=4.447 seconds=132.4
+iter 299: return=85.470 final_log10_regret=-3.370 entropy=4.409 seconds=90.5
+iter 300: return=90.298 final_log10_regret=-3.592 entropy=4.490 seconds=134.7
+iter 301: return=87.405 final_log10_regret=-3.405 entropy=4.461 seconds=97.1
+iter 302: return=90.679 final_log10_regret=-3.596 entropy=4.437 seconds=93.2
+iter 303: return=90.784 final_log10_regret=-3.584 entropy=4.461 seconds=88.1
+iter 304: return=86.115 final_log10_regret=-3.461 entropy=4.373 seconds=90.8
+iter 305: return=95.322 final_log10_regret=-3.723 entropy=4.423 seconds=86.9
+iter 306: return=92.056 final_log10_regret=-3.573 entropy=4.397 seconds=78.2
+iter 307: return=97.710 final_log10_regret=-3.820 entropy=4.460 seconds=66.3
+iter 308: return=91.489 final_log10_regret=-3.602 entropy=4.385 seconds=68.0
+iter 309: return=90.734 final_log10_regret=-3.619 entropy=4.316 seconds=70.4
+iter 310: return=94.799 final_log10_regret=-3.872 entropy=4.326 seconds=65.8
+iter 311: return=94.378 final_log10_regret=-3.730 entropy=4.359 seconds=66.3
+iter 312: return=85.142 final_log10_regret=-3.485 entropy=4.388 seconds=74.4

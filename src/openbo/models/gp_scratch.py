@@ -64,11 +64,12 @@ class GPScratch:
             raise ValueError("x_test must have shape (m, d) or (d,).")
 
         k_xs = self._kernel(self.x_train, x_test)
-        k_ss = self._kernel(x_test, x_test)
         mean_norm = k_xs.T @ self.alpha
         v = np.linalg.solve(self.l_chol, k_xs)
-        cov_norm = k_ss - v.T @ v
-        var_norm = np.maximum(np.diag(cov_norm), 1e-12)
+        # Both kernels are stationary, so the prior variance is `variance` at
+        # every point; only the diagonal of the posterior covariance is needed,
+        # which avoids building the m x m test covariance.
+        var_norm = np.maximum(self.variance - np.einsum("ij,ij->j", v, v), 1e-12)
         mean = mean_norm * self.y_std + self.y_mean
         var = var_norm * (self.y_std**2)
         return mean.astype(np.float64), var.astype(np.float64)

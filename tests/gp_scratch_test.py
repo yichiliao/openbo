@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from openbo.models.gp_scratch import GPScratch
 
@@ -78,3 +79,28 @@ def test_gp_hyperparameter_optimization_improves_mll() -> None:
     assert np.isfinite(nll_before)
     assert np.isfinite(nll_after)
     assert nll_after <= nll_before + 1e-6
+
+
+@pytest.mark.parametrize("kernel_type", ["rbf", "matern52"])
+@pytest.mark.parametrize("standardize", [True, False])
+def test_posterior_variance_matches_full_covariance_diagonal(kernel_type: str, standardize: bool) -> None:
+    """The diagonal-only variance should equal the diagonal of the full posterior covariance."""
+    rng = np.random.default_rng(0)
+    x = rng.random((12, 3))
+    y = np.sin(4 * x).sum(axis=1)
+    gp = GPScratch(
+        lengthscale=np.array([0.3, 0.5, 0.8]),
+        variance=1.7,
+        noise=1e-4,
+        kernel_type=kernel_type,  # type: ignore[arg-type]
+        standardize_targets=standardize,
+    )
+    gp.fit(x, y)
+    x_test = np.vstack([rng.random((40, 3)), x[:3]])
+    mean, var = gp.posterior(x_test)
+    k_xs = gp._kernel(gp.x_train, x_test)
+    v = np.linalg.solve(gp.l_chol, k_xs)
+    full = gp._kernel(x_test, x_test) - v.T @ v
+    expected_var = np.maximum(np.diag(full), 1e-12) * gp.y_std**2
+    np.testing.assert_allclose(var, expected_var, rtol=1e-10, atol=1e-14)
+    np.testing.assert_allclose(mean, k_xs.T @ gp.alpha * gp.y_std + gp.y_mean, rtol=1e-12)

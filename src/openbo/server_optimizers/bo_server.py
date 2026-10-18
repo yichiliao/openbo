@@ -263,6 +263,18 @@ class BOServerSession:
 
     def _stopped_payload(self, reason: str) -> dict[str, Any]:
         """Build stop payload with current partial optimization state."""
+        if self.optimizer.x_obs.shape[0] == 0:
+            return {
+                "type": "stopped",
+                "optimizer": self.optimizer_name,
+                "reason": str(reason),
+                "total_observations": 0,
+                "best_value": None,
+                "best_x": None,
+                "x_values": [],
+                "y_values": [],
+                "best_y_history": [],
+            }
         result = self.optimizer.result()
         self._persist_scratch_artifacts_if_enabled(result)
         best_value: float | None = None

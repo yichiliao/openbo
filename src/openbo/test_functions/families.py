@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
+from numpy.typing import NDArray
+from scipy.optimize import minimize
+from scipy.stats import qmc
 
 from openbo.test_functions.registry import FunctionSpec, make_variant_function_spec
 from openbo.test_functions.tasks import TASK_DIMS, TaskVariantSpec
@@ -147,3 +151,86 @@ def load_family_split(path: str | Path) -> FamilySplit:
             TaskVariantSpec.from_dict(item) for item in payload["test_variants"]
         ],
     )
+
+
+def estimate_optimum(
+    objective: Callable[[NDArray[np.float64]], NDArray[np.float64]],
+    dim: int,
+    *,
+    grid_points_per_dim: int = 201,
+    n_sobol: int = 1 << 14,
+    n_polish: int = 5,
+    seed: int = 0,
+) -> float:
+    """Estimate the maximum of a deterministic objective on `[0, 1]^dim`.
+
+    Scans a full grid for `dim <= 3` (a Sobol set otherwise), then polishes the
+    best `n_polish` points with bounded L-BFGS-B.
+    """
+    if dim <= 0:
+        raise ValueError("dim must be positive.")
+    if grid_points_per_dim < 2:
+        raise ValueError("grid_points_per_dim must be at least 2.")
+    if n_polish < 0:
+        raise ValueError("n_polish must be non-negative.")
+    if dim <= 3:
+        axis = np.linspace(0.0, 1.0, grid_points_per_dim)
+        mesh = np.meshgrid(*([axis] * dim), indexing="ij")
+        x_scan = np.stack([m.ravel() for m in mesh], axis=1)
+    else:
+        x_scan = qmc.Sobol(d=dim, scramble=True, seed=seed).random(n_sobol)
+    y_scan = np.asarray(objective(x_scan), dtype=np.float64)
+    best = float(np.max(y_scan))
+
+    for idx in np.argsort(y_scan)[::-1][:n_polish]:
+        result = minimize(
+            lambda z: -float(objective(z[None, :])[0]),
+            x_scan[idx],
+            method="L-BFGS-B",
+            bounds=[(0.0, 1.0)] * dim,
+        )
+        best = max(best, -float(result.fun))
+    return best
+
+
+def generate_user_variants(
+    base_name: str,
+    n_users: int,
+    shift_range: float,
+    scale_range: float,
+    seed: int = 0,
+) -> list[TaskVariantSpec]:
+    """Sample simulated-user variants as in ConBO (Liao et al., CHI 2025, Appendix A).
+
+    Each user shifts the inputs by `U(-shift_range/2, shift_range/2)` per
+    dimension and scales the output by `U(1 - scale_range/2, 1 + scale_range/2)`,
+    without input scaling or noise.
+    """
+    if n_users <= 0:
+        raise ValueError("n_users must be positive.")
+    if shift_range < 0.0:
+        raise ValueError("shift_range must be non-negative.")
+    if not 0.0 <= scale_range < 2.0:
+        raise ValueError("scale_range must be in [0, 2) so output scales stay positive.")
+    return generate_variants(
+        base_name=base_name,
+        n_tasks=n_users,
+        seed=seed,
+        max_input_shift=shift_range / 2.0,
+        max_input_scale_delta=0.0,
+        max_output_scale_delta=scale_range / 2.0,
+    )
+
+
+def make_user_sequence(
+    base_name: str,
+    variants: list[TaskVariantSpec],
+    prefix: str = "user",
+) -> list[FunctionSpec]:
+    """Build user specs from `generate_user_variants` output, in order.
+
+    Shifted inputs are clipped to `[0, 1]`, so a user's optimum can differ from
+    the scaled base optimum; each spec's `optimum` is estimated numerically.
+    """
+    specs = build_specs(base_name, variants, prefix)
+    return [replace(spec, optimum=estimate_optimum(spec.objective, spec.dim)) for spec in specs]

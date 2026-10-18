@@ -1,0 +1,22 @@
+# Continual BO (ConBO) across successive users, in normalized [0, 1]^2.
+# One WebSocket session = one user; at most one user session at a time.
+# The population persists in memory_dir: a session that reaches its budget is
+# stored there (replay retraining, about 10 s); "stop" discards the user unless
+# it sends "store": true. Objectives are maximized; set y_range for your app
+# (this default is for flipped Branin, y = -Branin(x)).
+input_dim: 2
+y_range: [-350.0, 1.0]
+memory_dir: meta-bo-training/conbo-memory/branin_demo
+n_evaluations_default: 20
+# ConBOConfig settings, used only when memory_dir holds no population yet
+# (a saved population keeps the settings it was created with).
+conbo:
+  r0: 6                          # random starts for user 1 ...
+  dr: 2                          # ... decreasing by 2 per user
+  alpha1: 5.0                    # population weight held at 1 for 5 evaluations,
+  alpha2: 0.2                    # then falls by 0.2 per evaluation
+  replay_variance_fraction: 0.05 # scale-free replay filter; or set replay_max_variance (raw units)
+  population_epochs: 1200
+  online_epochs: 15
+  candidate_grid_points: 40
+  seed: 0

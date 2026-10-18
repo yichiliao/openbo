@@ -1,0 +1,2 @@
+method=mobo_ieipv problem=dtlz1a seed=0 hypervolume=324886 pareto_size=4 seconds=8.8
+saved_trajectory=benchmark_results/mobo_2obj/trajectories/mobo_2obj_s0_mobo_ieipv_dtlz1a.json

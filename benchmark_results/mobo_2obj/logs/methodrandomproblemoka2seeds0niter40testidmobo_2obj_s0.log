@@ -1,0 +1,2 @@
+method=random problem=oka2 seed=0 hypervolume=14.2223 pareto_size=9 seconds=0.1
+saved_trajectory=benchmark_results/mobo_2obj/trajectories/mobo_2obj_s0_random_oka2.json

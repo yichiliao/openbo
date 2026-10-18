@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -22,6 +24,8 @@ from openbo.models.gp_scratch import GPScratch
 from openbo.optimizers.bo_scratch import BORunResult
 
 Objective = Callable[[NDArray[np.float64]], NDArray[np.float64]]
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -92,20 +96,35 @@ def _default_target_meta_when_empty(d: int) -> NDArray[np.float64]:
 
 
 def _load_source_surrogates(taf_run_dir: str | Path) -> list[SourceTaskSurrogate]:
-    """Reconstruct source surrogates from saved gp_states + trajectories."""
+    """Reconstruct source surrogates from saved gp_states + trajectories.
+
+    Files are found recursively. A ``gp_states/<sub>/<task>.json`` is paired with
+    ``trajectories/<sub>/<task>.json`` (an older ``branin_train_v1`` kept 11 of its
+    12 tasks in a ``train_task_0/`` subfolder). A task without a matching
+    trajectory is skipped with a warning. Two tasks with identical trajectory data
+    (for example a backup copy of a run kept inside ``gp_states/``) both load, and
+    each repeat is reported with a warning, because it would count the same task
+    twice. Only ``gp_states/`` is scanned; other folders of the run are ignored.
+    """
     run_dir = Path(taf_run_dir)
     gp_states_dir = run_dir / "gp_states"
     trajectories_dir = run_dir / "trajectories"
-    gp_files = sorted(gp_states_dir.glob("*.json"))
+    gp_files = sorted(gp_states_dir.rglob("*.json"))
     if not gp_files:
         raise ValueError(f"No source GP states found in: {gp_states_dir}")
 
     surrogates: list[SourceTaskSurrogate] = []
+    first_seen: dict[tuple[bytes, bytes], str] = {}
     for gp_path in gp_files:
         task_name = gp_path.stem
-        traj_path = trajectories_dir / f"{task_name}.json"
-        
+        relative = gp_path.relative_to(gp_states_dir)
+        traj_path = trajectories_dir / relative
+
         if not traj_path.exists():
+            warnings.warn(
+                f"Skipping source task {relative.as_posix()!r}: no matching trajectory at {traj_path}.",
+                stacklevel=2,
+            )
             continue
         gp_payload = json.loads(gp_path.read_text(encoding="utf-8"))
         traj_payload = json.loads(traj_path.read_text(encoding="utf-8"))
@@ -115,6 +134,15 @@ def _load_source_surrogates(taf_run_dir: str | Path) -> list[SourceTaskSurrogate
 
         x_values = np.asarray(traj_payload["x_values"], dtype=np.float64)
         y_values = np.asarray(traj_payload["y_values"], dtype=np.float64)
+        key = (x_values.tobytes(), y_values.tobytes())
+        if key in first_seen:
+            warnings.warn(
+                f"Source task {relative.as_posix()!r} has the same data as {first_seen[key]!r}; "
+                "it is loaded too, so the same task counts twice (a backup copy inside gp_states/?).",
+                stacklevel=2,
+            )
+        else:
+            first_seen[key] = relative.as_posix()
         gp = GPScratch(
             lengthscale=np.asarray(gp_state["lengthscale"], dtype=np.float64),
             variance=float(gp_state["variance"]),
@@ -307,14 +335,14 @@ class TAFSequentialOptimizer:
         iter_idx = self.iter_count
         source_only_phase = iter_idx < int(max(self.config.source_only_warmup_iters, 0))
         if source_only_phase:
-            print("source_only_phase") # FOR DEBUGGING
+            logger.debug("source_only_phase")
             target_gp_eval: GPScratch | None = None
             target_weight_eval = 0.0
             target_best_y = float("-inf") if iter_idx == 0 else (
                 float(np.max(self.y_obs)) if self.y_obs.size > 0 else float("-inf")
             )
         else:
-            print("target_phase") # FOR DEBUGGING
+            logger.debug("target_phase")
             if self.y_obs.size == 0:
                 raise ValueError(
                     "No target observations available when leaving source-only warmup."
@@ -333,8 +361,7 @@ class TAFSequentialOptimizer:
         else:
             target_meta = _default_meta_features(self.x_obs, self.y_obs)
 
-        print("target_meta") # FOR DEBUGGING
-        print(target_meta) # FOR DEBUGGING
+        logger.debug("target_meta %s", target_meta)
 
         if self.config.taf_weight_mode == "taf_m":
             source_meta = np.stack(
@@ -353,8 +380,7 @@ class TAFSequentialOptimizer:
         else:
             raise ValueError("taf_weight_mode must be 'taf_m' or 'taf_r'.")
         
-        print("source_weights") # FOR DEBUGGING
-        print(source_weights) # FOR DEBUGGING
+        logger.debug("source_weights %s", source_weights)
 
         if self.config.search_strategy == "multistart":
             x_pool = _sobol_in_bounds(

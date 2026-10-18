@@ -1,1 +1,0 @@
-"""Preference BO acquisition placeholder."""

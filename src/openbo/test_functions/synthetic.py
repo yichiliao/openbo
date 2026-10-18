@@ -13,6 +13,8 @@ ACKLEY_MAXIMUM: float = 0.0
 RASTRIGIN_MAXIMUM: float = 0.0
 ROSENBROCK_MAXIMUM: float = 0.0
 HARTMANN6_MAXIMUM: float = 3.322368011415515
+# McCormick is minimized at x1 - x2 = 1, x1 + x2 = -2*pi/3, with value -(sqrt(3)/2 + pi/3).
+MCCORMICK_MAXIMUM: float = math.sqrt(3.0) / 2.0 + math.pi / 3.0
 
 KNOWN_OPTIMA: dict[str, float] = {
     "branin": BRANIN_MAXIMUM,
@@ -21,6 +23,7 @@ KNOWN_OPTIMA: dict[str, float] = {
     "rastrigin": RASTRIGIN_MAXIMUM,
     "rosenbrock": ROSENBROCK_MAXIMUM,
     "hartmann6": HARTMANN6_MAXIMUM,
+    "mccormick": MCCORMICK_MAXIMUM,
 }
 
 
@@ -234,6 +237,34 @@ def hartmann6(
     return _apply_optional_noise(
         y,
         optimum=HARTMANN6_MAXIMUM,
+        noise_std=noise_std,
+        rng=rng,
+        cap_at_optimum=cap_at_optimum,
+    )
+
+
+def mccormick(
+    x: ArrayLike,
+    *,
+    noise_std: float = 0.0,
+    rng: np.random.Generator | None = None,
+    cap_at_optimum: bool = False,
+) -> NDArray[np.float64]:
+    """Evaluate the maximization McCormick function.
+
+    Input is expected in normalized domain `[0, 1]^2` and is linearly mapped to:
+    - `x1 in [-1.5, 4]`
+    - `x2 in [-3, 4]`
+    """
+    arr = _as_2d(x, dim=2)
+    arr_native = _from_unit_cube(arr, bounds=[(-1.5, 4.0), (-3.0, 4.0)])
+    x1 = arr_native[:, 0]
+    x2 = arr_native[:, 1]
+    y_min = np.sin(x1 + x2) + (x1 - x2) ** 2 - 1.5 * x1 + 2.5 * x2 + 1.0
+    y = (-y_min).astype(np.float64)
+    return _apply_optional_noise(
+        y,
+        optimum=MCCORMICK_MAXIMUM,
         noise_std=noise_std,
         rng=rng,
         cap_at_optimum=cap_at_optimum,

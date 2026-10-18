@@ -1,0 +1,1 @@
+method=bo test=branin seed=0 seconds=262.7 saved=benchmark_results/conbo_branin_5seeds/trajectories/t1_bo_branin_s0.json

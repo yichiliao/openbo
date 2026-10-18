@@ -1,0 +1,2 @@
+method=mobo_ieipv problem=oka2 seed=0 hypervolume=21.8354 pareto_size=3 seconds=6.5
+saved_trajectory=benchmark_results/mobo_2obj/trajectories/mobo_2obj_s0_mobo_ieipv_oka2.json

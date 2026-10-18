@@ -1,0 +1,21 @@
+# TAF+ (Liao et al., CHI 2024) in normalized [0, 1]^d. One session is one new user.
+# All objectives are maximized; the client sends y = [y_1, ..., y_L].
+# Set up for the App. B sphere users (4D input, 3 objectives).
+input_dim: 4
+# One [min, max] per objective. Observations outside are rejected. The sphere
+# users stay above about -10 for similarity ranges up to 0.3.
+y_range: [[-12.0, 2.0], [-12.0, 2.0], [-12.0, 2.0]]
+# Earlier users' GPs, written by TAFPlusPopulation.save (read-only; finished
+# users are not added). This one is the archived Simulation 2 population, range 0.1.
+population_dir: benchmark_results/taf_plus_sims/populations/v1_sim2_r01_s0
+# Defaults used when the start message omits a field.
+objective_weights_default: [0.3, 0.5, 0.2]
+decay_default: true
+d1_default: 8          # decay search result for this population (CHI study: 2, 0.3)
+d2_default: 0.1
+weight_mode_default: poe   # poe | taf_r
+rho_default: 1.0
+n_iter_default: 10
+n_candidates_default: 1024
+refine_suggestion_default: true
+first_point_default: population   # population | centre

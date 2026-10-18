@@ -1,0 +1,43 @@
+sim=sim2_r005 seed=0 users=10 seconds=0.0
+sim=sim2_r005 best=(d1=6, d2=0.1) seconds=1082.1 saved=benchmark_results/taf_plus_sims/decay/v1_sim2_r005_a030-050-020_s0.json
+method=random sim2_r005_a030-050-020_s0 seconds=0.2 saved=benchmark_results/taf_plus_sims/trajectories/v1_random_sim2_r005_a030-050-020_s0.json
+method=bo sim2_r005_a030-050-020_s0 seconds=80.9 saved=benchmark_results/taf_plus_sims/trajectories/v1_bo_sim2_r005_a030-050-020_s0.json
+method=taf_plus sim2_r005_a030-050-020_s0 seconds=324.9 saved=benchmark_results/taf_plus_sims/trajectories/v1_taf_plus_sim2_r005_a030-050-020_s0.json
+method=taf sim2_r005_a030-050-020_s0 seconds=339.8 saved=benchmark_results/taf_plus_sims/trajectories/v1_taf_sim2_r005_a030-050-020_s0.json
+sim=sim2_r01 seed=0 users=10 seconds=0.0
+sim=sim2_r01 best=(d1=8, d2=0.1) seconds=1088.1 saved=benchmark_results/taf_plus_sims/decay/v1_sim2_r01_a030-050-020_s0.json
+method=random sim2_r01_a030-050-020_s0 seconds=0.2 saved=benchmark_results/taf_plus_sims/trajectories/v1_random_sim2_r01_a030-050-020_s0.json
+method=bo sim2_r01_a030-050-020_s0 seconds=77.5 saved=benchmark_results/taf_plus_sims/trajectories/v1_bo_sim2_r01_a030-050-020_s0.json
+method=taf_plus sim2_r01_a030-050-020_s0 seconds=325.3 saved=benchmark_results/taf_plus_sims/trajectories/v1_taf_plus_sim2_r01_a030-050-020_s0.json
+method=taf sim2_r01_a030-050-020_s0 seconds=333.2 saved=benchmark_results/taf_plus_sims/trajectories/v1_taf_sim2_r01_a030-050-020_s0.json
+sim=sim2_r02 seed=0 users=10 seconds=0.0
+sim=sim2_r02 best=(d1=8, d2=0.1) seconds=1033.2 saved=benchmark_results/taf_plus_sims/decay/v1_sim2_r02_a030-050-020_s0.json
+method=random sim2_r02_a030-050-020_s0 seconds=0.1 saved=benchmark_results/taf_plus_sims/trajectories/v1_random_sim2_r02_a030-050-020_s0.json
+method=bo sim2_r02_a030-050-020_s0 seconds=71.2 saved=benchmark_results/taf_plus_sims/trajectories/v1_bo_sim2_r02_a030-050-020_s0.json
+method=taf sim2_r02_a030-050-020_s0 seconds=329.8 saved=benchmark_results/taf_plus_sims/trajectories/v1_taf_sim2_r02_a030-050-020_s0.json
+method=taf_plus sim2_r02_a030-050-020_s0 seconds=330.2 saved=benchmark_results/taf_plus_sims/trajectories/v1_taf_plus_sim2_r02_a030-050-020_s0.json
+sim=sim2_r03 seed=0 users=10 seconds=0.0
+sim=sim2_r03 best=(d1=8, d2=0.1) seconds=1041.1 saved=benchmark_results/taf_plus_sims/decay/v1_sim2_r03_a030-050-020_s0.json
+method=random sim2_r03_a030-050-020_s0 seconds=0.2 saved=benchmark_results/taf_plus_sims/trajectories/v1_random_sim2_r03_a030-050-020_s0.json
+method=bo sim2_r03_a030-050-020_s0 seconds=73.1 saved=benchmark_results/taf_plus_sims/trajectories/v1_bo_sim2_r03_a030-050-020_s0.json
+method=taf_plus sim2_r03_a030-050-020_s0 seconds=314.2 saved=benchmark_results/taf_plus_sims/trajectories/v1_taf_plus_sim2_r03_a030-050-020_s0.json
+method=taf sim2_r03_a030-050-020_s0 seconds=328.5 saved=benchmark_results/taf_plus_sims/trajectories/v1_taf_sim2_r03_a030-050-020_s0.json
+sim=sim1 seed=0 users=10 seconds=0.0
+method=random sim1_a100-000-000_s0 seconds=0.1 saved=benchmark_results/taf_plus_sims/trajectories/v1_random_sim1_a100-000-000_s0.json
+method=bo sim1_a100-000-000_s0 seconds=72.5 saved=benchmark_results/taf_plus_sims/trajectories/v1_bo_sim1_a100-000-000_s0.json
+method=taf sim1_a100-000-000_s0 seconds=259.6 saved=benchmark_results/taf_plus_sims/trajectories/v1_taf_sim1_a100-000-000_s0.json
+method=random sim1_a000-100-000_s0 seconds=0.1 saved=benchmark_results/taf_plus_sims/trajectories/v1_random_sim1_a000-100-000_s0.json
+method=bo sim1_a000-100-000_s0 seconds=66.0 saved=benchmark_results/taf_plus_sims/trajectories/v1_bo_sim1_a000-100-000_s0.json
+method=taf sim1_a000-100-000_s0 seconds=261.2 saved=benchmark_results/taf_plus_sims/trajectories/v1_taf_sim1_a000-100-000_s0.json
+method=random sim1_a000-000-100_s0 seconds=0.1 saved=benchmark_results/taf_plus_sims/trajectories/v1_random_sim1_a000-000-100_s0.json
+method=bo sim1_a000-000-100_s0 seconds=69.3 saved=benchmark_results/taf_plus_sims/trajectories/v1_bo_sim1_a000-000-100_s0.json
+method=taf sim1_a000-000-100_s0 seconds=247.2 saved=benchmark_results/taf_plus_sims/trajectories/v1_taf_sim1_a000-000-100_s0.json
+method=random sim1_a033-033-034_s0 seconds=0.1 saved=benchmark_results/taf_plus_sims/trajectories/v1_random_sim1_a033-033-034_s0.json
+method=bo sim1_a033-033-034_s0 seconds=62.4 saved=benchmark_results/taf_plus_sims/trajectories/v1_bo_sim1_a033-033-034_s0.json
+method=taf sim1_a033-033-034_s0 seconds=266.7 saved=benchmark_results/taf_plus_sims/trajectories/v1_taf_sim1_a033-033-034_s0.json
+method=random sim1_a050-030-020_s0 seconds=0.1 saved=benchmark_results/taf_plus_sims/trajectories/v1_random_sim1_a050-030-020_s0.json
+method=bo sim1_a050-030-020_s0 seconds=61.8 saved=benchmark_results/taf_plus_sims/trajectories/v1_bo_sim1_a050-030-020_s0.json
+method=taf sim1_a050-030-020_s0 seconds=271.7 saved=benchmark_results/taf_plus_sims/trajectories/v1_taf_sim1_a050-030-020_s0.json
+method=random sim1_a030-050-020_s0 seconds=0.2 saved=benchmark_results/taf_plus_sims/trajectories/v1_random_sim1_a030-050-020_s0.json
+method=bo sim1_a030-050-020_s0 seconds=63.3 saved=benchmark_results/taf_plus_sims/trajectories/v1_bo_sim1_a030-050-020_s0.json
+method=taf sim1_a030-050-020_s0 seconds=264.3 saved=benchmark_results/taf_plus_sims/trajectories/v1_taf_sim1_a030-050-020_s0.json

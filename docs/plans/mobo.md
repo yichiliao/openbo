@@ -4,6 +4,8 @@ Status: Phases 1–7 done; first 2-objective benchmark done (SLF-GP sweep and VL
 
 Reference: A. Shah and Z. Ghahramani, [*Pareto Frontier Learning with Expensive Correlated Objectives*](https://proceedings.mlr.press/v48/shahc16.html), ICML 2016 (PMLR 48:1919–1927). The main paper has been read; the supplementary material (EIPV derivation and test-function definitions) has not.
 
+See also: Y.-C. Liao, G. B. Mo, J. J. Dudley, C.-L. Cheng, L. Chan, P. O. Kristensson and A. Oulasvirta, [*Practical approaches to group-level multi-objective Bayesian optimization in interaction technique design*](https://journals.sagepub.com/doi/full/10.1177/26339137241241313), Collective Intelligence 3(1), 2024. It applies MOBO to groups of users: deriving designs for a group from individual users' data, and initializing new users from group data. Not implemented in OpenBO.
+
 ## Decisions
 
 | Topic | Decision |

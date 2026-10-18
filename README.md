@@ -22,6 +22,17 @@ OpenBO is a research + teaching Python library for Bayesian optimization (BO): s
 - [Citation](#citation)
 - [Contact](#contact)
 
+### Papers
+
+The methods in OpenBO and the papers they follow. BibTeX entries are in [`relevant_papers/references.bib`](relevant_papers/references.bib).
+
+- **TAF**: Wistuba, Schilling and Schmidt-Thieme, [*Scalable Gaussian process-based transfer surrogates for hyperparameter optimization*](https://doi.org/10.1007/s10994-017-5684-y), Machine Learning, 2018. Sections 4 and 6.
+- **TAF+**: Liao et al., [*A Meta-Bayesian Approach for Rapid Online Parametric Optimization for Wrist-based Interactions*](https://doi.org/10.1145/3613904.3642071), CHI 2024. Section 9.
+- **ConBO**: Liao et al., [*Continual Human-in-the-Loop Optimization*](https://doi.org/10.1145/3706598.3713603), CHI 2025. Section 8.
+- **NAF (MetaBO)**: Volpp et al., [*Meta-Learning Acquisition Functions for Transfer Learning in Bayesian Optimization*](https://arxiv.org/abs/1904.02642), ICLR 2020. Section 10.
+- **MOBO (CEIPV)**: Shah and Ghahramani, [*Pareto Frontier Learning with Expensive Correlated Objectives*](https://proceedings.mlr.press/v48/shahc16.html), ICML 2016. Section 7.
+- **Group-level MOBO** (related reading, not implemented): Liao et al., [*Practical approaches to group-level multi-objective Bayesian optimization in interaction technique design*](https://journals.sagepub.com/doi/full/10.1177/26339137241241313), Collective Intelligence, 2024.
+
 ## 0. Current scope
 
 OpenBO targets **research and teaching** in **normalized** input space `[0, 1]^d`: synthetic objectives, standard BO, **transfer BO (TAF)** using saved source-task GPs, **TAF+** and **continual BO (ConBO)** for transfer across users, a **neural acquisition function (NAF, MetaBO)** meta-trained with reinforcement learning, **multi-objective BO (MOBO)** with correlated objectives, and optional **WebSocket** servers when the objective runs outside this process.
@@ -1433,6 +1444,10 @@ designs that no other design beats in every objective. Progress is measured
 by the **Pareto hypervolume**, the volume between the front and a lower
 reference point `v_ref`. All objectives are **maximized**, inputs live in
 `[0, 1]^d`, and observations have shape `(n, L)`.
+
+For MOBO with groups of users in interaction design, see also Liao et al.,
+[*Practical approaches to group-level multi-objective Bayesian optimization in interaction technique design*](https://journals.sagepub.com/doi/full/10.1177/26339137241241313)
+(Collective Intelligence, 2024).
 
 The design decisions and the paper reproduction notes are in
 [`docs/plans/mobo.md`](docs/plans/mobo.md).

@@ -84,18 +84,6 @@ OpenBO targets **research and teaching** in **normalized** input space `[0, 1]^d
 - NAF has three function families (Branin, Goldstein-Price and Hartmann-3). Trained models and benchmark results exist for all three: Branin (up to 2000 iterations), and Goldstein-Price (600 iterations) and Hartmann-3 (600 and 2000 iterations; at 600 it did not reproduce the paper's result, at 2000 it does). MetaBO's GP-prior and real-world tasks are not implemented.
 - The teaching notebooks are still empty.
 
-**Roadmap: what we aim to implement next**
-
-Multi-objective BO (Section 7), continual BO (Section 8) and the TAF variant TAF+ (Section 9), previously on this list, are now implemented. Every optimizer family has a WebSocket server (Section 5). ConBO's Tests 2–3 and ablations are still open; see [`docs/plans/conbo.md`](docs/plans/conbo.md). TAF+ follows the original TAF (Wistuba et al., 2018) wherever the CHI 2024 paper disagrees with it; its open questions are in [`docs/plans/taf_plus.md`](docs/plans/taf_plus.md).
-
-The next steps, in priority order:
-
-1. **Neural acquisition function (NAF), original paper**: meta-train a neural acquisition function with reinforcement learning on a family of related tasks, following Volpp et al., [*Meta-Learning Acquisition Functions for Transfer Learning in Bayesian Optimization*](https://arxiv.org/abs/1904.02642) (MetaBO, ICLR 2020). **Done for the Branin family** (Section 10; results in Section 12). Training to 313 PPO iterations got NAF ahead of EI on mean regret over evaluations 1–30; training to 2000 (the reference's length) reached a median log10 regret of about -5.6 on Branin, close to the paper's Figure 2(a), from one training run (Section 12). The training slowdown is fixed. Goldstein-Price and Hartmann-3 are trained and benchmarked too; Hartmann-3 reaches the paper's level at 2000 iterations (one seed). Open work (Section 10.6 and [`docs/plans/naf.md`](docs/plans/naf.md)): repeat the long training with other seeds (questions 11–12) and find out why Goldstein-Price does not improve beyond 600 iterations. NAF's server (Section 10.5) serves any trained AF.
-2. **Full manual verification run**: run every workflow in this README by hand (benchmarks, plots, TAF training, every WebSocket server with its fake client) and confirm each one works as documented. Fix or document anything that does not.
-3. **Teaching notebooks**: fill `notebooks/` so newcomers can follow and learn BO step by step, from a GP and an acquisition function up to the advanced methods.
-4. **Infrastructure for other applications**: client-side support for using the servers from web, iOS, Unity and other environments.
-5. **Claude skills**: skills that help people use OpenBO with Claude.
-
 ## 1. Installation and quickstart
 
 Set up the project environment first:

@@ -1,0 +1,37 @@
+name: Tests and teaching material
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Python ${{ matrix.python }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+    env:
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run --locked ruff check src scripts server_scripts examples tests
+      - run: uv run --locked mypy src/openbo --ignore-missing-imports
+      - run: uv run --locked python scripts/check_docs.py --execute-notebooks
+      - run: uv run --locked python examples/student_quickstart.py --n-evals 5
+      - run: uv run --locked pytest tests --junitxml=test_results/junit.xml
+      - run: uv build

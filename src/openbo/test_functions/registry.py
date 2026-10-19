@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, replace
-from typing import Callable
+from typing import Callable, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -175,9 +175,10 @@ def get_function_spec(
         return spec
 
     rng = noise_rng(noise_seed)
+    noisy_function = cast(Callable[..., NDArray[np.float64]], spec.objective)
 
     def noisy_objective(x: NDArray[np.float64]) -> NDArray[np.float64]:
-        return spec.objective(
+        return noisy_function(
             x,
             noise_std=noise_std,
             rng=rng,

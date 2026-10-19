@@ -113,7 +113,7 @@ class NeuralAF(nn.Module):
         self.hidden = tuple(hidden)
         self.n_weights = n_weights
         with torch.random.fork_rng(devices=[]):
-            torch.manual_seed(seed)
+            torch.default_generator.manual_seed(seed)
             self.net = mlp(n_naf_features(dim, use_x, n_weights), self.hidden)
 
     def forward(self, features: torch.Tensor) -> torch.Tensor:

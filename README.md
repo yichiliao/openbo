@@ -6,6 +6,9 @@ OpenBO is a research and teaching Python library for Bayesian optimization (BO):
 
 ## Installation
 
+**New to BO? Start with the [student walkthrough](docs/guide/students.md): installation
+on Windows/macOS/Linux, a small runnable comparison, notebooks and a glossary.**
+
 OpenBO needs Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
 
 ```bash
@@ -16,6 +19,17 @@ uv run pytest tests    # optional: the full test suite takes a few minutes
 ```
 
 Run commands with `uv run ...` (or `source .venv/bin/activate` first), from the repository root: default config and output paths are relative to it.
+
+Python 3.14 and 3.15 can be selected with `uv sync --locked --python 3.14` or
+`uv sync --locked --python 3.15`. For subsequent runs, use `uv python pin 3.14`
+(or `3.15`) locally. Python 3.15 uses the official PyTorch CPU index automatically;
+see the [installation notes](docs/guide/students.md#1-install-and-check-your-environment).
+
+```sh
+uv run python examples/student_quickstart.py
+```
+
+This creates a plot and JSON trajectories under `test_results/student_quickstart/`.
 
 ## A first run
 
@@ -34,6 +48,7 @@ The full command reference is in [`docs/guide/`](docs/guide/README.md):
 
 | Topic | Guide |
 | --- | --- |
+| Student setup, concepts and first experiment | [students.md](docs/guide/students.md) |
 | Benchmarks on one test function | [single-function.md](docs/guide/single-function.md) |
 | Families of related tasks, train/test splits | [families.md](docs/guide/families.md) |
 | TAF (transfer acquisition function) | [taf.md](docs/guide/taf.md) |

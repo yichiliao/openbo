@@ -51,10 +51,11 @@ def _gp_state_from_single_task_gp(
 
     noise = float(np.asarray(model.likelihood.noise.detach().cpu(), dtype=np.float64).reshape(-1)[0])
 
+    # GPyTorch modules expose dynamically registered buffers.
     ot = model.outcome_transform
     if ot is not None and hasattr(ot, "means") and hasattr(ot, "stdvs"):
-        y_mean = float(np.asarray(ot.means.detach().cpu(), dtype=np.float64).reshape(-1)[0])
-        y_std = float(np.asarray(ot.stdvs.detach().cpu(), dtype=np.float64).reshape(-1)[0])
+        y_mean = float(np.asarray(ot.means.detach().cpu(), dtype=np.float64).reshape(-1)[0])  # type: ignore[operator]
+        y_std = float(np.asarray(ot.stdvs.detach().cpu(), dtype=np.float64).reshape(-1)[0])  # type: ignore[operator]
         standardize_targets = True
     else:
         y_mean = 0.0
@@ -68,6 +69,7 @@ def _gp_state_from_single_task_gp(
         "lengthscale": [float(v) for v in lengthscale],
         "variance": variance,
         "noise": noise,
+        "mean_constant": float(model.mean_module.constant.detach().cpu().item()),
         "standardize_targets": standardize_targets,
         "optimize_hyperparameters": True,
         "optimize_noise": bool(getattr(model.likelihood.noise, "requires_grad", False)),
@@ -195,6 +197,8 @@ class BoTorchSequentialOptimizer:
             raise ValueError(f"x_new must have shape (n, {self.d}), got {x_new.shape}.")
         if y_new.ndim != 1 or y_new.shape[0] != x_new.shape[0]:
             raise ValueError("y_new must have shape (n,) and match x_new rows.")
+        if x_new.shape[0] == 0 or not np.all(np.isfinite(x_new)) or not np.all(np.isfinite(y_new)):
+            raise ValueError("observations must be non-empty and finite.")
 
         self.x_obs = np.vstack([self.x_obs, x_new])
         self.y_obs = np.concatenate([self.y_obs, y_new])

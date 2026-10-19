@@ -6,6 +6,8 @@ The command reference for OpenBO: every script, flag, server protocol and archiv
 
 **Benchmarks on test functions**
 
+- **[Student walkthrough](students.md)**: install, run a small comparison, learn the conventions and work through the first four notebooks.
+
 - [Single-function benchmarks](single-function.md): run and compare optimizers on one test function, noise, 2D search plots, log-regret plots.
 - [Families of related tasks](families.md): task variants, train/test splits, family benchmarks and plots.
 

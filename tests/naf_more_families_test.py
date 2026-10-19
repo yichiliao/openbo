@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import math
 
 import numpy as np
@@ -176,7 +178,6 @@ def small_afs(tmp_path_factory) -> dict[str, str]:
 
 
 def test_benchmark_accepts_an_af_of_the_right_family_without_warnings(small_afs) -> None:
-    import warnings
 
     from openbo.benchmarks.naf_runner import run_naf_method
 
@@ -206,7 +207,6 @@ def test_benchmark_warns_when_a_same_dimension_af_belongs_to_another_family(smal
 
 
 def test_benchmark_only_warns_for_an_af_with_hyperparameters_of_its_own(tmp_path_factory) -> None:
-    import warnings
 
     from openbo.benchmarks.naf_runner import run_naf_method
 

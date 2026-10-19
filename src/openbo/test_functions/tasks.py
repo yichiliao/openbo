@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import Any, Callable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -64,7 +64,7 @@ class TaskVariantSpec:
         }
 
     @staticmethod
-    def from_dict(data: dict[str, object]) -> "TaskVariantSpec":
+    def from_dict(data: dict[str, Any]) -> "TaskVariantSpec":
         """Construct variant spec from a JSON-like dictionary."""
         return TaskVariantSpec(
             input_shift=tuple(float(v) for v in data["input_shift"]),  # type: ignore[index]

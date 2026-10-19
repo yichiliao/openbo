@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, overload
 
 import numpy as np
 import torch
@@ -233,6 +233,8 @@ class MOBoTorchSequentialOptimizer:
             raise ValueError(
                 f"y_new must have shape (n, {self.m}) and match x_new rows, got {y_new.shape}."
             )
+        if x_new.shape[0] == 0 or not np.all(np.isfinite(x_new)) or not np.all(np.isfinite(y_new)):
+            raise ValueError("observations must be non-empty and finite.")
 
         self.x_obs = np.vstack([self.x_obs, x_new])
         self.y_obs = np.vstack([self.y_obs, y_new])
@@ -257,31 +259,63 @@ class MOBoTorchSequentialOptimizer:
         )
 
 
+@overload
+def run_mobo_botorch(objective: MOObjective, bounds: MOBoTorchConfig, *, n_iter: int = 25) -> MOBORunResult: ...
+
+
+@overload
+def run_mobo_botorch(objective: MOObjective, bounds: MOBoTorchConfig, iterations: int, /) -> MOBORunResult: ...
+
+
+@overload
+def run_mobo_botorch(objective: MOObjective, *, config: MOBoTorchConfig, n_iter: int = 25) -> MOBORunResult: ...
+
+
+@overload
+def run_mobo_botorch(
+    objective: MOObjective, bounds: list[tuple[float, float]], ref_point: Sequence[float],
+    n_init: int = 5, n_iter: int = 25, seed: int | None = 0,
+) -> MORunResult: ...
+
+
 def run_mobo_botorch(
     objective: MOObjective,
-    bounds: list[tuple[float, float]] | MOBoTorchConfig,
-    ref_point: Sequence[float] | None = None,
+    bounds: list[tuple[float, float]] | MOBoTorchConfig | None = None,
+    ref_point: Sequence[float] | int | None = None,
     n_init: int = 5,
     n_iter: int = 25,
     seed: int | None = 0,
+    *,
+    config: MOBoTorchConfig | None = None,
 ) -> MORunResult | MOBORunResult:
     """Run qLogNEHVI using a config or the original bounds/ref_point API.
 
     A config returns the upstream ``MOBORunResult`` (history per ask/tell
     round). Bounds/ref_point returns ``MORunResult`` (history per evaluation).
     """
-    config_api = isinstance(bounds, MOBoTorchConfig)
-    config = bounds if config_api else MOBoTorchConfig(
-        bounds=bounds, ref_point=ref_point, n_init=n_init, seed=seed
-    )
-    if config.n_init <= 0:
+    config_api = config is not None or isinstance(bounds, MOBoTorchConfig)
+    if config is not None:
+        if bounds is not None or ref_point is not None:
+            raise ValueError("Use either config or bounds/ref_point.")
+        resolved_config = config
+    elif isinstance(bounds, MOBoTorchConfig):
+        resolved_config = bounds
+        if ref_point is not None:
+            if not isinstance(ref_point, int):
+                raise ValueError("The third positional argument after a config is n_iter.")
+            n_iter = ref_point
+    else:
+        if bounds is None or isinstance(ref_point, int):
+            raise ValueError("Provide a config or bounds and a reference point.")
+        resolved_config = MOBoTorchConfig(bounds=bounds, ref_point=ref_point, n_init=n_init, seed=seed)
+    if resolved_config.n_init <= 0:
         raise ValueError(
             "n_init must be >= 1 for mobo_botorch: at least one random observation is "
             "needed before the first suggest()."
         )
     if n_iter < 0:
         raise ValueError("n_iter must be non-negative.")
-    optimizer = MOBoTorchSequentialOptimizer(config)
+    optimizer = MOBoTorchSequentialOptimizer(resolved_config)
     optimizer.bootstrap(objective)
 
     for _ in range(n_iter):
@@ -295,7 +329,7 @@ def run_mobo_botorch(
         return MOBORunResult(
             x_obs=result.x_obs,
             y_obs=result.y_obs,
-            hv_history=result.hypervolume_history[config.n_init - 1 :],
+            hv_history=result.hypervolume_history[resolved_config.n_init - 1 :],
             pareto_x=result.x_obs[mask].copy(),
             pareto_y=result.y_obs[mask].copy(),
             final_model_state={

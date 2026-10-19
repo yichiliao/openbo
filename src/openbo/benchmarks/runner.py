@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from openbo.optimizers.bo_botorch import run_bo_botorch
-from openbo.optimizers.bo_scratch import run_bo_scratch
+from openbo.optimizers.bo_botorch import BORunResult as BoTorchRunResult, run_bo_botorch
+from openbo.optimizers.bo_scratch import BORunResult as ScratchRunResult, run_bo_scratch
 from openbo.optimizers.bo_taf import run_bo_taf
 from openbo.optimizers.random_search import RandomSearch
 from openbo.test_functions.registry import get_function_spec
@@ -94,6 +94,7 @@ def run_simple_benchmark(
     bounds = spec.bounds
 
     metadata: dict[str, object] | None = None
+    result: ScratchRunResult | BoTorchRunResult
     if method == "random":
         optimizer = RandomSearch(bounds=bounds, seed=seed)
         x, y = optimizer.run(objective=objective, n_evals=n_evals)

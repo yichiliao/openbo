@@ -9,6 +9,15 @@ authors = [
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
+classifiers = [
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+]
 dependencies = [
     "botorch>=0.17.2",
     "gpytorch>=1.15.2",
@@ -27,6 +36,11 @@ dependencies = [
 [build-system]
 requires = ["uv_build>=0.11.8,<0.12.0"]
 build-backend = "uv_build"
+
+[project.urls]
+Homepage = "https://www.csie.ntu.edu.tw/~yichi/openbo-website/index.html"
+Repository = "https://github.com/yichiliao/openbo"
+Documentation = "https://github.com/yichiliao/openbo/blob/main/docs/guide/README.md"
 
 [tool.uv.build-backend]
 module-name = "openbo"

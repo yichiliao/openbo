@@ -143,7 +143,7 @@ def test_distinct_tasks_in_nested_folders_do_not_warn(tmp_path: Path) -> None:
         assert len(_load_source_surrogates(tmp_path)) == 2
 
 
-def test_only_gp_states_is_scanned_and_unreadable_files_are_an_error(tmp_path: Path) -> None:
+def test_only_gp_states_is_scanned_and_malformed_sources_are_skipped(tmp_path: Path) -> None:
     _write_source(tmp_path, "task_000.json", 1)
     # Other folders and files of the run are ignored, without a warning.
     (tmp_path / "gp_predictions").mkdir()
@@ -152,8 +152,8 @@ def test_only_gp_states_is_scanned_and_unreadable_files_are_an_error(tmp_path: P
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         assert len(_load_source_surrogates(tmp_path)) == 1
-    # A file inside gp_states/ that has a trajectory but is not valid JSON is an error, not skipped.
+    # A malformed source must not prevent the valid sources from loading.
     (tmp_path / "gp_states" / "broken.json").write_text("{not json", encoding="utf-8")
     (tmp_path / "trajectories" / "broken.json").write_text("{}", encoding="utf-8")
-    with pytest.raises(json.JSONDecodeError):
-        _load_source_surrogates(tmp_path)
+    with pytest.warns(UserWarning, match="broken.*malformed artifacts"):
+        assert len(_load_source_surrogates(tmp_path)) == 1

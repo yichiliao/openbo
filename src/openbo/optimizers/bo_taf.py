@@ -142,6 +142,9 @@ def _load_source_surrogates(taf_run_dir: str | Path) -> list[SourceTaskSurrogate
                 optimize_hyperparameters=False,
                 standardize_targets=bool(gp_state.get("standardize_targets", True)),
                 optimize_noise=bool(gp_state.get("optimize_noise", False)),
+                mean_constant=float(gp_state.get("mean_constant", 0.0)),
+                fixed_target_mean=gp_state.get("y_mean"),
+                fixed_target_std=gp_state.get("y_std"),
             )
             gp.fit(x_values, y_values)
         except (KeyError, ValueError, TypeError, np.linalg.LinAlgError) as exc:

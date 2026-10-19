@@ -59,11 +59,12 @@
 - `test_results/` - day-to-day outputs ([Results folders](results.md#results-folder-convention)).
 - `benchmark_results/` - archived milestone runs ([Archived results](results.md#archived-benchmark-results)), including `naf_branin/` with the trained Branin NAF.
 - `meta-bo-training/` - saved TAF source runs (`taf-gps/`), scratch-server artifacts (`server-scratch-artifacts/`) and NAF training runs (`naf/`).
-- `notebooks/` - planned teaching notebooks (`01_bo_from_scratch` … `05_meta_bo_taf_conbo_naf`); currently empty placeholders.
+- `examples/student_quickstart.py` - a small random-search/BO comparison with saved plot and trajectories.
+- `notebooks/` - four runnable introductory lessons (`01`–`04`); later notebooks remain placeholders.
 
 ## Stubs and out of scope
 
 - Several modules under `src/openbo` are **stubs or placeholders** for future work and are **not** exposed through the benchmark or server CLIs: `acquisition/pi.py`, `acquisition/ucb.py`, `models/botorch_gp.py`, `benchmarks/metrics.py`, `benchmarks/plotting.py`, `scripts/aggregate_results.py`.
 - `configs/methods/*.yaml` and `configs/benchmark.yaml` are placeholders; no script reads them. Scripts are configured through command-line flags (and server YAMLs for the WebSocket servers).
 - NAF: MetaBO's GP-prior and real-world tasks are not implemented.
-- The teaching notebooks are still empty.
+- The meta-BO and preferential-BO notebooks (`05` and `06`) remain placeholders. Start with the first four lessons and the [student walkthrough](students.md).

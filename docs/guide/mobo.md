@@ -53,6 +53,37 @@ The website's Methods page has a `run_mobo` example on OKA2.
 `observe(x, y)` / `result()` ask/tell interface as the single-objective
 optimizers.
 
+### TAF-EHVI and the BoTorch compatibility API
+
+This fork also provides `run_mobo_taf` in `openbo.optimizers.mobo_taf`: it
+blends the target's qLogNEHVI with source hypervolume improvements. Source
+trajectories must contain `y_values` of shape `(n, M)` and matching per-objective
+GP states. `taf_weight_mode="taf_r"` uses objective-wise pairwise ranking;
+`"taf_r_pareto"` keeps the Pareto-dominance alternative for comparisons.
+With no accepted sources, the target acquisition reduces to the baseline.
+
+The BoTorch helper accepts both calling conventions:
+
+```python
+from openbo.optimizers.mobo_botorch import MOBoTorchConfig, run_mobo_botorch
+
+# Upstream convention: config; history per initialization/observation round.
+config = MOBoTorchConfig(bounds=[(0.0, 1.0)] * spec.dim, v_ref=spec.v_ref)
+result = run_mobo_botorch(spec.objective, config, n_iter=5)
+print(result.hv_history, result.pareto_y)
+
+# Original fork convention: explicit bounds/reference; history per evaluation.
+legacy = run_mobo_botorch(spec.objective, config.bounds, list(spec.v_ref), n_iter=5)
+print(legacy.hypervolume_history, legacy.pareto_front)
+```
+
+Here `spec` is a multi-objective function spec, for example
+`get_mo_function_spec("oka2")` from `openbo.test_functions.multi_objective`.
+The baseline uses batched independent outputs of `SingleTaskGP`; each objective
+has its own parameters. These result histories have different lengths because
+the original fork records each initial point separately. Use the matching field
+when plotting against the evaluation budget.
+
 ## Benchmark and plot
 
 ```bash

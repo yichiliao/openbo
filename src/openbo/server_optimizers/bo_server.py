@@ -148,6 +148,8 @@ class BOServerSession:
                 raise ValueError("task_name must be non-empty when provided.")
             task_name = candidate
 
+        config: BoTorchConfig | ScratchConfig
+        optimizer: BoTorchSequentialOptimizer | ScratchSequentialOptimizer
         if optimizer_name == "bo_botorch":
             config = BoTorchConfig(
                 bounds=bounds,

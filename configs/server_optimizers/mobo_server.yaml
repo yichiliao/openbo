@@ -1,0 +1,12 @@
+# Multi-objective BO (CEIPV) in normalized [0, 1]^d, set up for OKA2.
+# All objectives are maximized; the client sends y = [y_1, ..., y_L].
+input_dim: 3
+# One [min, max] per objective. Observations outside are rejected.
+# v_ref / w_ref (the hypervolume reference box) default to the mins / maxes.
+y_range: [[-3.2, 3.1416], [-5.1, 0.0]]
+model: slf            # independent | mt | slf
+acquisition: ceipv    # ceipv | ieipv
+hyperparameters: map  # map | slice
+n_init_default: 5
+n_iter_default: 20
+n_candidates_default: 1024

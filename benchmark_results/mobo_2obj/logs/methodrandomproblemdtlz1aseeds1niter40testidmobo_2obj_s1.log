@@ -1,0 +1,2 @@
+method=random problem=dtlz1a seed=1 hypervolume=306968 pareto_size=7 seconds=0.1
+saved_trajectory=benchmark_results/mobo_2obj/trajectories/mobo_2obj_s1_random_dtlz1a.json

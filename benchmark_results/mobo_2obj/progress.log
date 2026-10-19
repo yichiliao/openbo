@@ -1,0 +1,32 @@
+jobs: 30
+DONE --method mobo_ceipv_slf --problem oka2 --seeds 0 --n-iter 40 --test-id mobo_2obj_s0
+DONE --method mobo_ceipv_slf --problem dtlz1a --seeds 0 --n-iter 40 --test-id mobo_2obj_s0
+DONE --method mobo_ceipv_slf --problem oka2 --seeds 1 --n-iter 40 --test-id mobo_2obj_s1
+DONE --method mobo_ceipv_slf --problem dtlz1a --seeds 1 --n-iter 40 --test-id mobo_2obj_s1
+DONE --method mobo_ceipv_slf --problem oka2 --seeds 2 --n-iter 40 --test-id mobo_2obj_s2
+DONE --method mobo_ceipv_slf --problem dtlz1a --seeds 2 --n-iter 40 --test-id mobo_2obj_s2
+DONE --method mobo_ceipv_mt --problem oka2 --seeds 0 --n-iter 40 --test-id mobo_2obj_s0
+DONE --method mobo_ceipv_mt --problem dtlz1a --seeds 0 --n-iter 40 --test-id mobo_2obj_s0
+DONE --method mobo_ceipv_mt --problem oka2 --seeds 1 --n-iter 40 --test-id mobo_2obj_s1
+DONE --method mobo_ceipv_mt --problem dtlz1a --seeds 1 --n-iter 40 --test-id mobo_2obj_s1
+DONE --method mobo_ceipv_mt --problem oka2 --seeds 2 --n-iter 40 --test-id mobo_2obj_s2
+DONE --method mobo_ceipv_mt --problem dtlz1a --seeds 2 --n-iter 40 --test-id mobo_2obj_s2
+DONE --method mobo_ieipv --problem oka2 --seeds 0 --n-iter 40 --test-id mobo_2obj_s0
+DONE --method mobo_ieipv --problem dtlz1a --seeds 0 --n-iter 40 --test-id mobo_2obj_s0
+DONE --method mobo_ieipv --problem oka2 --seeds 1 --n-iter 40 --test-id mobo_2obj_s1
+DONE --method mobo_botorch --problem oka2 --seeds 0 --n-iter 40 --test-id mobo_2obj_s0
+DONE --method mobo_botorch --problem oka2 --seeds 1 --n-iter 40 --test-id mobo_2obj_s1
+DONE --method mobo_ieipv --problem dtlz1a --seeds 1 --n-iter 40 --test-id mobo_2obj_s1
+DONE --method mobo_ieipv --problem oka2 --seeds 2 --n-iter 40 --test-id mobo_2obj_s2
+DONE --method mobo_botorch --problem oka2 --seeds 2 --n-iter 40 --test-id mobo_2obj_s2
+DONE --method random --problem oka2 --seeds 0 --n-iter 40 --test-id mobo_2obj_s0
+DONE --method mobo_ieipv --problem dtlz1a --seeds 2 --n-iter 40 --test-id mobo_2obj_s2
+DONE --method random --problem dtlz1a --seeds 0 --n-iter 40 --test-id mobo_2obj_s0
+DONE --method random --problem oka2 --seeds 1 --n-iter 40 --test-id mobo_2obj_s1
+DONE --method random --problem dtlz1a --seeds 1 --n-iter 40 --test-id mobo_2obj_s1
+DONE --method random --problem dtlz1a --seeds 2 --n-iter 40 --test-id mobo_2obj_s2
+DONE --method random --problem oka2 --seeds 2 --n-iter 40 --test-id mobo_2obj_s2
+DONE --method mobo_botorch --problem dtlz1a --seeds 0 --n-iter 40 --test-id mobo_2obj_s0
+DONE --method mobo_botorch --problem dtlz1a --seeds 2 --n-iter 40 --test-id mobo_2obj_s2
+DONE --method mobo_botorch --problem dtlz1a --seeds 1 --n-iter 40 --test-id mobo_2obj_s1
+ALL FINISHED

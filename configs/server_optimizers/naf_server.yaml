@@ -1,0 +1,15 @@
+# NAF / MetaBO (Volpp et al., ICLR 2020) in normalized [0, 1]^d. One session is one task.
+# The objective is maximized; the client sends one value y per observation.
+# Set up for the archived Branin model: tasks of MetaBO's Branin family,
+# s * g(x - t), with g the reference's normalized Branin (scripts/train_naf.py).
+input_dim: 2
+# Observations outside [min, max] are rejected. Branin-family tasks stay inside
+# about [-10.3, 1.16]. Values must be on the training family's scale: the AF reads
+# the GP's raw mean and standard deviation.
+y_range: [-12.0, 2.0]
+# A scripts/train_naf.py output folder (read-only): <af_name>.pt and naf_config.json.
+af_dir: benchmark_results/naf_branin/training/branin_metabo50_v1
+af_name: best_af       # best_af (best training return) | af (last iteration)
+# Evaluations per session when the start message omits n_iter. Leave unset (null)
+# for the AF's training budget T (30 here); a session can never run longer than T.
+n_iter_default: null

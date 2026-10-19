@@ -15,6 +15,7 @@ from openbo.test_functions.synthetic import (
     ackley,
     branin,
     hartmann6,
+    mccormick,
     rastrigin,
     rosenbrock,
     sphere,
@@ -132,6 +133,13 @@ REGISTRY: dict[str, FunctionSpec] = {
         bounds=[(0.0, 1.0)] * 6,
         dim=6,
         optimum=KNOWN_OPTIMA["hartmann6"],
+    ),
+    "mccormick": FunctionSpec(
+        name="mccormick",
+        objective=mccormick,
+        bounds=[(0.0, 1.0), (0.0, 1.0)],
+        dim=2,
+        optimum=KNOWN_OPTIMA["mccormick"],
     ),
 }
 

@@ -1,0 +1,1 @@
+method=taf_m test=branin seed=1 seconds=627.8 saved=benchmark_results/conbo_branin_5seeds/trajectories/t1_taf_m_branin_s1.json

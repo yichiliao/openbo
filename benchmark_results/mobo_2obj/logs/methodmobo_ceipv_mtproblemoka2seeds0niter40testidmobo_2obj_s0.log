@@ -1,0 +1,2 @@
+method=mobo_ceipv_mt problem=oka2 seed=0 hypervolume=16.6506 pareto_size=7 seconds=17.1
+saved_trajectory=benchmark_results/mobo_2obj/trajectories/mobo_2obj_s0_mobo_ceipv_mt_oka2.json

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """WebSocket clients: one session per **train** variant from a saved family split.
 
-Used in README §4c Step 4 with ``run_bo_server`` (scratch, auto-save GP artifacts).
+Used in docs/guide/taf.md (end-to-end TAF workflow, Step 4) with ``run_bo_server`` (scratch, auto-save GP artifacts).
 See ``server_scripts/run_manual_family_test_clients.py`` for the TAF test phase.
 
 Run from repo root, with the scratch server already running::

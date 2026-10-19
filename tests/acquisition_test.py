@@ -91,6 +91,10 @@ def test_botorch_bo_runs_small_loop() -> None:
     assert result.x_obs.shape == (5, 2)
     assert result.y_obs.shape == (5,)
     assert result.best_y_history.shape == (3,)
+    assert result.final_gp_state["backend"] == "botorch"
+    assert result.final_gp_state["dim"] == 2
+    assert result.final_gp_state["n_observations"] == 5
+    assert len(result.final_gp_state["lengthscale"]) == 2
 
 
 def test_botorch_sequential_optimizer_ask_tell() -> None:
@@ -112,6 +116,7 @@ def test_botorch_sequential_optimizer_ask_tell() -> None:
     assert result.x_obs.shape == (4, 2)
     assert result.y_obs.shape == (4,)
     assert result.best_y_history.shape == (2,)
+    assert result.final_gp_state["n_observations"] == 4
 
 
 def test_epanechnikov_weight_behavior() -> None:

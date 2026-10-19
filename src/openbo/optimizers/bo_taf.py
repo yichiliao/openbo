@@ -93,35 +93,44 @@ def _default_target_meta_when_empty(d: int) -> NDArray[np.float64]:
 
 
 def _load_source_surrogates(taf_run_dir: str | Path) -> list[SourceTaskSurrogate]:
-    """Reconstruct source surrogates from saved gp_states + trajectories."""
+    """Reconstruct source surrogates from saved gp_states + trajectories.
+
+    Files are found recursively. A ``gp_states/<sub>/<task>.json`` is paired with
+    ``trajectories/<sub>/<task>.json`` (an older ``branin_train_v1`` kept 11 of its
+    12 tasks in a ``train_task_0/`` subfolder). A task without a matching
+    trajectory is skipped with a warning. Two tasks with identical trajectory data
+    (for example a backup copy of a run kept inside ``gp_states/``) both load, and
+    each repeat is reported with a warning, because it would count the same task
+    twice. Only ``gp_states/`` is scanned; other folders of the run are ignored.
+    """
     run_dir = Path(taf_run_dir)
     gp_states_dir = run_dir / "gp_states"
     trajectories_dir = run_dir / "trajectories"
-    gp_files = sorted(gp_states_dir.glob("*.json"))
+    gp_files = sorted(gp_states_dir.rglob("*.json"))
     if not gp_files:
         raise ValueError(f"No source GP states found in: {gp_states_dir}")
 
     surrogates: list[SourceTaskSurrogate] = []
+    first_seen: dict[tuple[bytes, bytes], str] = {}
     for gp_path in gp_files:
         task_name = gp_path.stem
-        traj_path = trajectories_dir / f"{task_name}.json"
+        relative = gp_path.relative_to(gp_states_dir)
+        traj_path = trajectories_dir / relative
 
         if not traj_path.exists():
             warnings.warn(
-                f"TAF source '{task_name}': missing trajectory file {traj_path}; "
-                "skipping this source."
+                f"Skipping source task {relative.as_posix()!r}: no matching trajectory at {traj_path}.",
+                stacklevel=2,
             )
             continue
         try:
             gp_payload = json.loads(gp_path.read_text(encoding="utf-8"))
             traj_payload = json.loads(traj_path.read_text(encoding="utf-8"))
+            if not isinstance(gp_payload, dict) or not isinstance(traj_payload, dict):
+                raise ValueError("artifact must be a JSON object")
             gp_state = gp_payload.get("gp_state")
             if not isinstance(gp_state, dict):
-                warnings.warn(
-                    f"TAF source '{task_name}': gp_state missing or not an object; "
-                    "skipping this source."
-                )
-                continue
+                raise ValueError("gp_state missing or not an object")
 
             x_values = np.asarray(traj_payload["x_values"], dtype=np.float64)
             y_values = np.asarray(traj_payload["y_values"], dtype=np.float64)
@@ -135,15 +144,21 @@ def _load_source_surrogates(taf_run_dir: str | Path) -> list[SourceTaskSurrogate
                 optimize_noise=bool(gp_state.get("optimize_noise", False)),
             )
             gp.fit(x_values, y_values)
-        except (KeyError, ValueError, TypeError, json.JSONDecodeError) as exc:
-            # A present-but-malformed file is treated the same as a missing one
-            # (warn + skip) instead of raising an opaque KeyError mid-load.
+        except (KeyError, ValueError, TypeError, np.linalg.LinAlgError) as exc:
             warnings.warn(
-                f"TAF source '{task_name}': malformed artifacts ({exc!r}); "
-                "skipping this source."
+                f"TAF source '{task_name}': malformed artifacts ({exc!r}); skipping this source.",
+                stacklevel=2,
             )
             continue
-
+        key = (x_values.tobytes(), y_values.tobytes())
+        if key in first_seen:
+            warnings.warn(
+                f"Source task {relative.as_posix()!r} has the same data as {first_seen[key]!r}; "
+                "it is loaded too, so the same task counts twice (a backup copy inside gp_states/?).",
+                stacklevel=2,
+            )
+        else:
+            first_seen[key] = relative.as_posix()
         surrogates.append(
             SourceTaskSurrogate(
                 name=task_name,

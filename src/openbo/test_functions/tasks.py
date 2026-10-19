@@ -15,6 +15,7 @@ TASK_BOUNDS: dict[str, list[tuple[float, float]]] = {
     "rastrigin": [(0.0, 1.0), (0.0, 1.0)],
     "rosenbrock": [(0.0, 1.0), (0.0, 1.0)],
     "hartmann6": [(0.0, 1.0)] * 6,
+    "mccormick": [(0.0, 1.0), (0.0, 1.0)],
 }
 
 TASK_DIMS: dict[str, int] = {

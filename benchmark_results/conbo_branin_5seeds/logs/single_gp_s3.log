@@ -1,0 +1,1 @@
+method=single_gp test=branin seed=3 seconds=887.9 saved=benchmark_results/conbo_branin_5seeds/trajectories/t1_single_gp_branin_s3.json

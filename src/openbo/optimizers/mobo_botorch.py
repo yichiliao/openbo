@@ -11,7 +11,8 @@ reference point must be dominated by any point that should contribute hypervolum
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from typing import Callable
 
 import numpy as np
@@ -28,6 +29,8 @@ from botorch.utils.multi_objective.hypervolume import Hypervolume
 from botorch.utils.multi_objective.pareto import is_non_dominated
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from numpy.typing import NDArray
+
+from openbo.optimizers.mobo import MOBORunResult
 
 # A multi-objective objective maps (n, d) -> (n, M).
 MOObjective = Callable[[NDArray[np.float64]], NDArray[np.float64]]
@@ -96,12 +99,23 @@ class MOBoTorchConfig:
     """Configuration for the BoTorch multi-objective sequential optimizer."""
 
     bounds: list[tuple[float, float]]
-    ref_point: list[float]
+    ref_point: Sequence[float] | None = None
     n_init: int = 5
     num_restarts: int = 5
     raw_samples: int = 64
     mc_samples: int = 128
     seed: int | None = 0
+    v_ref: Sequence[float] | None = field(default=None, kw_only=True)
+
+    def __post_init__(self) -> None:
+        """Accept the reference-point names used by both OpenBO APIs."""
+        if self.ref_point is None:
+            self.ref_point = self.v_ref
+        elif self.v_ref is not None and not np.array_equal(self.ref_point, self.v_ref):
+            raise ValueError("ref_point and v_ref must agree when both are provided.")
+        if self.ref_point is None:
+            raise ValueError("Provide ref_point (or v_ref).")
+        self.v_ref = self.ref_point
 
 
 class MOBoTorchSequentialOptimizer:
@@ -245,21 +259,29 @@ class MOBoTorchSequentialOptimizer:
 
 def run_mobo_botorch(
     objective: MOObjective,
-    bounds: list[tuple[float, float]],
-    ref_point: list[float],
+    bounds: list[tuple[float, float]] | MOBoTorchConfig,
+    ref_point: Sequence[float] | None = None,
     n_init: int = 5,
     n_iter: int = 25,
     seed: int | None = 0,
-) -> MORunResult:
-    """Run simple BoTorch multi-objective BO (all objectives maximized)."""
-    if n_init <= 0:
+) -> MORunResult | MOBORunResult:
+    """Run qLogNEHVI using a config or the original bounds/ref_point API.
+
+    A config returns the upstream ``MOBORunResult`` (history per ask/tell
+    round). Bounds/ref_point returns ``MORunResult`` (history per evaluation).
+    """
+    config_api = isinstance(bounds, MOBoTorchConfig)
+    config = bounds if config_api else MOBoTorchConfig(
+        bounds=bounds, ref_point=ref_point, n_init=n_init, seed=seed
+    )
+    if config.n_init <= 0:
         raise ValueError(
             "n_init must be >= 1 for mobo_botorch: at least one random observation is "
             "needed before the first suggest()."
         )
-    optimizer = MOBoTorchSequentialOptimizer(
-        MOBoTorchConfig(bounds=bounds, ref_point=ref_point, n_init=n_init, seed=seed)
-    )
+    if n_iter < 0:
+        raise ValueError("n_iter must be non-negative.")
+    optimizer = MOBoTorchSequentialOptimizer(config)
     optimizer.bootstrap(objective)
 
     for _ in range(n_iter):
@@ -267,4 +289,21 @@ def run_mobo_botorch(
         y_next = np.asarray(objective(x_next), dtype=np.float64)
         optimizer.observe(x_next, y_next)
 
-    return optimizer.result()
+    result = optimizer.result()
+    if config_api:
+        mask = is_non_dominated(torch.tensor(result.y_obs, dtype=torch.double)).numpy()
+        return MOBORunResult(
+            x_obs=result.x_obs,
+            y_obs=result.y_obs,
+            hv_history=result.hypervolume_history[config.n_init - 1 :],
+            pareto_x=result.x_obs[mask].copy(),
+            pareto_y=result.y_obs[mask].copy(),
+            final_model_state={
+                "backend": "botorch",
+                "model": "SingleTaskGP (independent output batches)",
+                "acquisition": "qLogNEHVI",
+                "n_observations": int(result.x_obs.shape[0]),
+                "dim": optimizer.d,
+            },
+        )
+    return result

@@ -1,0 +1,11 @@
+method=naf tasks=100 seconds=38 saved=test_results/naf/trajectories/v1_naf_branin.json
+naf took 41 s
+method=ei tasks=100 seconds=8 saved=test_results/naf/trajectories/v1_ei_branin.json
+ei took 11 s
+method=random tasks=100 seconds=0 saved=test_results/naf/trajectories/v1_random_branin.json
+random took 3 s
+method=taf_me_50 tasks=100 seconds=2280 saved=test_results/naf/trajectories/v1_taf_me_50_branin.json
+taf_me_50 took 2283 s
+method=taf_r_50 tasks=100 seconds=2742 saved=test_results/naf/trajectories/v1_taf_r_50_branin.json
+taf_r_50 took 2747 s
+ALL DONE

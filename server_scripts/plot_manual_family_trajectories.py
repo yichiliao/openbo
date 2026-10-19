@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot log10(regret) trajectories from README §4c manual workflow artifacts.
+"""Plot log10(regret) trajectories from the artifacts of the manual workflow in docs/guide/taf.md.
 
 Uses the same regret definition as ``scripts/plot_family_results.py`` (maximization):
 
@@ -7,7 +7,7 @@ Uses the same regret definition as ``scripts/plot_family_results.py`` (maximizat
 
 **Train (scratch server)** JSON files: ``<scratch_artifacts_dir>/trajectories/*.json``
 (field ``best_so_far``). These are **train** tasks; the test curve uses **test** tasks —
-overlapping mean regret is expected and does not prove transfer (see README §4c Step 8).
+overlapping mean regret is expected and does not prove transfer (see docs/guide/taf.md, end-to-end TAF workflow, Step 8).
 
 **Test (TAF server)** JSON files from::
 
@@ -266,7 +266,7 @@ def main() -> None:
                 f"(train median length={int(med_tr)}, test={int(med_te)}). "
                 "The x-axis is one step per server observe; TAF batches random init into "
                 "one observe, so counts need not match scratch. "
-                "Green and purple also use different task cohorts — see README §4c Step 8.",
+                "Green and purple also use different task cohorts — see docs/guide/taf.md (end-to-end TAF workflow, Step 8).",
                 file=sys.stderr,
             )
 

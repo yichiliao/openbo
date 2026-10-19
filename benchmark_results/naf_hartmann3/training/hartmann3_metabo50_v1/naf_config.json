@@ -1,0 +1,39 @@
+{
+  "config": {
+    "dim": 3,
+    "budget": 30,
+    "use_x": true,
+    "hidden": [
+      200,
+      200,
+      200,
+      200
+    ],
+    "points_per_dim": 12,
+    "n_local_maxima": 5,
+    "n_local": 2000,
+    "n_iterations": 600,
+    "steps_per_iteration": 1200,
+    "epochs": 4,
+    "minibatch_size": 60,
+    "learning_rate": 0.0001,
+    "clip": 0.15,
+    "value_coefficient": 1.0,
+    "entropy_coefficient": 0.01,
+    "gamma": 0.98,
+    "gae_lambda": 0.98,
+    "n_workers": 7,
+    "update_threads": 8,
+    "seed": 0,
+    "n_weights": 0
+  },
+  "gp_hyperparameters": {
+    "lengthscale": [
+      0.709,
+      0.305,
+      0.173
+    ],
+    "variance": 0.694,
+    "noise": 1e-10
+  }
+}

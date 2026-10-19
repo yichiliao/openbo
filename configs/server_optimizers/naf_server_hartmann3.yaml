@@ -1,0 +1,17 @@
+# NAF / MetaBO (Volpp et al., ICLR 2020) in normalized [0, 1]^d. One session is one task.
+# The objective is maximized; the client sends one value y per observation.
+# Set up for the archived Hartmann-3 model trained for 2000 iterations (one seed): tasks of
+# MetaBO's Hartmann-3 family, s * g(x - t), with g the reference's normalized Hartmann-3 on a
+# 3D input (scripts/train_naf.py --family hartmann3).
+# Run with: uv run python server_scripts/run_naf_server.py --config-path configs/server_optimizers/naf_server_hartmann3.yaml
+input_dim: 3
+# Observations outside [min, max] are rejected. Hartmann-3-family tasks stay inside about
+# [-1.1, 3.4] (3050 tasks, 4000 random points each, and the corners). Values must be on the
+# training family's scale: the AF reads the GP's raw mean and standard deviation.
+y_range: [-1.5, 4.5]
+# A scripts/train_naf.py output folder (read-only): <af_name>.pt and naf_config.json.
+af_dir: benchmark_results/naf_hartmann3/training/hartmann3_metabo50_v2_2000
+af_name: best_af       # best_af (best training return, iteration 1454) | af (last iteration)
+# Evaluations per session when the start message omits n_iter. Leave unset (null) for the AF's
+# training budget T (30 here); a session can never run longer than T.
+n_iter_default: null

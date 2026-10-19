@@ -2,10 +2,12 @@
 
 OpenBO is a research + teaching Python library for Bayesian optimization (BO): standard BO, transfer and meta-BO (TAF, TAF+, continual BO, MetaBO-style neural acquisition functions) and multi-objective BO.
 
+**Website: [https://www.csie.ntu.edu.tw/~yichi/openbo-website/](https://www.csie.ntu.edu.tw/~yichi/openbo-website/index.html)**. The website has the overview: [installation and a first run](https://www.csie.ntu.edu.tw/~yichi/openbo-website/get-started.html), [what each method does and the paper it follows](https://www.csie.ntu.edu.tw/~yichi/openbo-website/methods.html), [interactive demos](https://www.csie.ntu.edu.tw/~yichi/openbo-website/demos.html), [benchmark results](https://www.csie.ntu.edu.tw/~yichi/openbo-website/benchmarks.html) and [how to cite OpenBO and the papers](https://www.csie.ntu.edu.tw/~yichi/openbo-website/publications.html). This README is the reference: every script, flag, server protocol and archived run.
+
 ### Table of contents
 
 - [0. Current scope](#0-current-scope)
-- [1. Installation and quickstart](#1-installation-and-quickstart)
+- [1. Installation](#1-installation)
 - [2. Single-function workflow](#2-single-function-workflow)
 - [3. Family-of-functions workflow](#3-family-of-functions-workflow)
 - [4. Meta-BO training and testing](#4-meta-bo-training-and-testing)
@@ -16,75 +18,23 @@ OpenBO is a research + teaching Python library for Bayesian optimization (BO): s
 - [9. TAF+: transfer across users with several objectives](#9-taf-transfer-across-users-with-several-objectives)
 - [10. NAF (MetaBO): a learned acquisition function](#10-naf-metabo-a-learned-acquisition-function)
 - [11. Results folder convention](#11-results-folder-convention)
-- [12. Important benchmark results](#12-important-benchmark-results)
+- [12. Archived benchmark results](#12-archived-benchmark-results)
 - [13. Project structure](#13-project-structure)
-- [License](#license)
-- [Citation](#citation)
-- [Contact](#contact)
-
-### Papers
-
-The methods in OpenBO and the papers they follow. BibTeX entries are in [`relevant_papers/references.bib`](relevant_papers/references.bib).
-
-- **TAF**: Wistuba, Schilling and Schmidt-Thieme, [*Scalable Gaussian process-based transfer surrogates for hyperparameter optimization*](https://doi.org/10.1007/s10994-017-5684-y), Machine Learning, 2018. Sections 4 and 6.
-- **TAF+**: Liao et al., [*A Meta-Bayesian Approach for Rapid Online Parametric Optimization for Wrist-based Interactions*](https://doi.org/10.1145/3613904.3642071), CHI 2024. Section 9.
-- **ConBO**: Liao et al., [*Continual Human-in-the-Loop Optimization*](https://doi.org/10.1145/3706598.3713603), CHI 2025. Section 8.
-- **NAF (MetaBO)**: Volpp et al., [*Meta-Learning Acquisition Functions for Transfer Learning in Bayesian Optimization*](https://arxiv.org/abs/1904.02642), ICLR 2020. Section 10.
-- **MOBO (CEIPV)**: Shah and Ghahramani, [*Pareto Frontier Learning with Expensive Correlated Objectives*](https://proceedings.mlr.press/v48/shahc16.html), ICML 2016. Section 7.
-- **Group-level MOBO** (related reading, not implemented): Liao et al., [*Practical approaches to group-level multi-objective Bayesian optimization in interaction technique design*](https://journals.sagepub.com/doi/full/10.1177/26339137241241313), Collective Intelligence, 2024.
+- [License and citation](#license-and-citation)
 
 ## 0. Current scope
 
-OpenBO targets **research and teaching** in **normalized** input space `[0, 1]^d`: synthetic objectives, standard BO, **transfer BO (TAF)** using saved source-task GPs, **TAF+** and **continual BO (ConBO)** for transfer across users, a **neural acquisition function (NAF, MetaBO)** meta-trained with reinforcement learning, **multi-objective BO (MOBO)** with correlated objectives, and optional **WebSocket** servers when the objective runs outside this process.
-
-**Test functions and task families**
-
-- Registered synthetics: `branin`, `sphere`, `ackley`, `rastrigin`, `rosenbrock`, `mccormick`, `hartmann6` (dims per `registry`; Branin-style tasks are 2D).
-- Optional **Gaussian output noise** and **capping at the optimum** for noisy benchmarks.
-- Multi-objective problems (maximized): `oka2`, `vlmop3`, `dtlz1a`, and synthetic correlated SLF-GP draws (`make_slf_gp_problem(rho)`), with reference points and known true hypervolumes where available (`test_functions/multi_objective.py`).
-- **Affine variants** of a base function, **random families**, persisted **train/test splits** (`create_family_split`), and objectives built from those splits (`families` + `registry`).
-
-**Optimizers and acquisition**
-
-- **Random search** baseline.
-- **BO from scratch**: NumPy GP + expected improvement; multistart L-BFGS-B search (and a grid-style variant) in `bo_scratch`.
-- **BoTorch BO**: `SingleTaskGP` + `LogExpectedImprovement` in `bo_botorch`.
-- **TAF** (`bo_taf`, `bo_taf_m`, `bo_taf_r`): transfer acquisition using source surrogates loaded from a directory of saved `gp_states/` + `trajectories/` (`bo_taf`).
-- **Multi-objective BO** (`optimizers/mobo.py`), following Shah & Ghahramani (ICML 2016): a multi-output GP (`independent`, multi-task `mt`, or semiparametric latent factor `slf`) with **CEIPV**, the correlated expected increase in Pareto volume, or its independent-objective form IEIPV. Hyperparameters are MAP or slice-sampled. A BoTorch **qLogNEHVI** baseline lives in `mobo_botorch.py`. See Section 7.
-- **Continual BO (ConBO)** (`optimizers/conbo.py`), following Liao et al. (CHI 2025): a population BNN trained by generative replay of finished users' GPs, mixed with each new user's own GP through a scheduled EI handover (Section 8).
-- **TAF+** (`optimizers/bo_taf_plus.py`), following Liao et al. (CHI 2024) on top of the original TAF: transfer from earlier users' per-objective GPs, with objective weights and a decay on the population weights. Runs in-process, in the benchmarks and through its own server (Section 9).
-- **NAF / MetaBO** (`optimizers/naf.py`, `acquisition/naf.py`), following Volpp et al. (ICLR 2020) and its reference code: a neural acquisition function trained with PPO on a family of related tasks, used with a fixed-hyperparameter GP. Three families are defined (Branin, Goldstein-Price, Hartmann-3); models are trained and benchmarked for all three (Branin to 2000 iterations; Goldstein-Price and Hartmann-3 to 600); runs in-process, in the benchmark and through its own server (Section 10).
-
-**Benchmarks, trajectories, and plots**
-
-- **Single-task** and **family** benchmark runners; JSON **trajectories** for single runs and per-task family runs.
-- **Log-regret** plots (per-iteration and best-so-far; single-task and family mean ± std).
-- Optional **2D search-path** plots over a function heatmap (`run_benchmark.py`, `run_fake_client.py`).
-- TAF-specific tooling: **`train_taf`**, GP **prediction heatmaps**, **acquisition** query diagnostics (`plot_taf_*` scripts).
-- **MOBO benchmarks**: multi-seed hypervolume and log-hypervolume-regret plots and final Pareto fronts (`run_mobo_benchmark.py`, `plot_mobo_results.py`).
-- **ConBO benchmarks**: sequences of simulated users with ConBO, standard BO, TAF and a pooled single GP; per-user regret curves and summary tables (`run_conbo_benchmark.py`, `plot_conbo_results.py`).
-- **TAF+ simulations** (CHI 2024 App. B): sphere users in 4D with 3 objectives; population modeling, leave-one-out decay search, and TAF+ vs TAF, BO and random on new users (`run_taf_plus_benchmark.py`, `plot_taf_plus_results.py`; results in Section 12).
-- **NAF (MetaBO) benchmark**: PPO training with checkpoints and resume, then the trained AF vs EI, TAF-ME-50, TAF-R-50 and random search on unseen tasks of a family, with median regret curves and a training curve (`train_naf.py`, `run_naf_benchmark.py`, `plot_naf_results.py`; results in Section 12).
-
-**Servers and integration**
-
-- **Generic WebSocket BO server** (`run_bo_server`): `bo_scratch` or `bo_botorch`; optional **auto-save** of scratch trajectories and GP states for TAF.
-- **Dedicated TAF WebSocket server** (`run_taf_server`): same `TAFSequentialOptimizer` as in-process TAF, ask/tell JSON protocol.
-- **Dedicated MOBO WebSocket server** (`run_mobo_server`): each observation is a vector with one value per objective.
-- **Dedicated ConBO WebSocket server** (`run_conbo_server`): one session per user; finished users are stored in a memory directory, so later users start from the population.
-- **Dedicated TAF+ WebSocket server** (`run_taf_plus_server`): one session per new user, with a fixed population loaded from disk; each observation is a vector with one value per objective.
-- **Dedicated NAF WebSocket server** (`run_naf_server`): one session per task, with a trained neural AF loaded from disk; at most as many evaluations as the AF was trained for.
-- **Fake Branin clients** (including `run_fake_client.py` and `scripts/run_botorch_fake_client.py` for BoTorch-oriented tests) and **manual family** client scripts (train variants on scratch, test variants on TAF, optional regret plots).
+The methods, test functions and servers are summarized on the website's [Methods](https://www.csie.ntu.edu.tw/~yichi/openbo-website/methods.html) and [Get started](https://www.csie.ntu.edu.tw/~yichi/openbo-website/get-started.html) pages, and each module is listed in Section 13.
 
 **Out of scope for now**
 
 - Several modules under `src/openbo` are **stubs or placeholders** for future work and are **not** exposed through the benchmark or server CLIs documented here:
   - placeholder functions: `acquisition/pi.py`, `acquisition/ucb.py`, `models/botorch_gp.py`, `benchmarks/metrics.py`, `benchmarks/plotting.py`, `scripts/aggregate_results.py`
 - `configs/methods/*.yaml` and `configs/benchmark.yaml` are placeholders; no script reads them. Scripts are configured through command-line flags (and server YAMLs for the WebSocket servers).
-- NAF has three function families (Branin, Goldstein-Price and Hartmann-3). Trained models and benchmark results exist for all three: Branin (up to 2000 iterations), and Goldstein-Price (600 iterations) and Hartmann-3 (600 and 2000 iterations; at 600 it did not reproduce the paper's result, at 2000 it does). MetaBO's GP-prior and real-world tasks are not implemented.
+- NAF: MetaBO's GP-prior and real-world tasks are not implemented.
 - The teaching notebooks are still empty.
 
-## 1. Installation and quickstart
+## 1. Installation
 
 Set up the project environment first:
 
@@ -107,26 +57,7 @@ python -m pytest
 
 All commands in this README assume either `uv run ...` or an activated `.venv`, and are run **from the repository root** (default config and output paths are relative).
 
-Run all tests:
-
-```bash
-uv run pytest
-```
-
-Quick smoke run (random search vs. BoTorch BO on Branin, then a log-regret comparison plot):
-
-```bash
-uv run python scripts/run_benchmark.py --method bo_botorch --function branin
-uv run python scripts/plot_results.py --methods random bo_botorch --function branin
-```
-
-### Conventions
-
-- **Maximization everywhere.** Synthetic objectives are returned in maximization form (e.g. `branin` returns `-Branin(x)`, so its optimum is about `-0.3979`; `hartmann6` peaks at about `3.32`). Known optima live in `KNOWN_OPTIMA` (`openbo.test_functions.synthetic`).
-- **Normalized inputs.** Objectives and optimizers work in `[0, 1]^d`; each test function maps the unit cube to its native domain internally.
-- **Regret metric.** Regret plots use `log10(max(optimum - y, 1e-12))`, where `y` is the value at each iteration or the best so far, depending on the plot; lower is better.
-- **Shapes.** Objectives take `(n, d)` NumPy arrays and return `(n,)`.
-- **Ask/tell optimizers.** Each optimizer exposes `suggest()` / `observe(...)`; the `run_*` helpers and the WebSocket servers wrap the same classes.
+The conventions (maximization everywhere, inputs in `[0, 1]^d`, array shapes, the regret metric) are on the website's [Get started](https://www.csie.ntu.edu.tw/~yichi/openbo-website/get-started.html#conventions) page. Known optima are in `KNOWN_OPTIMA` (`openbo.test_functions.synthetic`).
 
 ## 2. Single-function workflow
 
@@ -464,7 +395,6 @@ Generally meta-Bayesian optimization workflow follows these three steps:
 - Step 2: Train the optimizer with the training tasks.
 - Step 3: Test the optimizer's performance on test tasks. 
 
-
 ### 4.1. Transfer Acquisition Function (TAF) workflow
 
 Step 1: Create a persistent train/test split:
@@ -566,33 +496,9 @@ Notes:
 - TAF loads one source GP per `gp_states/<task>.json` file under `--taf-run-dir`, including subfolders (`gp_states/<sub>/<task>.json` is paired with `trajectories/<sub>/<task>.json`). A task without a matching trajectory is skipped with a warning. Two tasks with identical data (for example a backup copy of a run kept inside `gp_states/`) both load, and each repeat triggers a warning because it counts the same task twice. Only `gp_states/` is scanned. Check the number of sources (`n_sources` in the run metadata) if results look off.
 - The committed `meta-bo-training/taf-gps/branin_train_v1` has all 12 tasks at the top level of `gp_states/` and `trajectories/`, the same layout `train_taf.py` writes, so re-running the training command overwrites the files instead of adding a second copy. (Earlier, 11 of the 12 tasks sat in a nested `train_task_0/` subfolder and the loader read only the top level, so TAF runs pointed at this directory used a **single** source. The output of the TAF fake client and server with their default config, which point at this run, came from that single-source version.)
 
-
 ## 5. Server-based Optimization Workflow
 
-Here, we provide the server-based interface for any systems to communicate with our optimizers via WebSockets. With the steps below, you can run the same BO backends **over WebSockets** when your objective lives outside this process (simulator, service, or other language): start a server, speak the JSON ask/tell protocol, and use the included fake client for a quick smoke test. 
-
-OpenBO supports a server-style optimization loop for external applications
-that evaluate candidate designs outside this Python process.
-
-Current server implementation:
-- Generic BO server via WebSocket (`server_scripts/run_bo_server.py`)
-- Supported backends in generic server: `bo_botorch`, `bo_scratch`
-- Dedicated TAF server via WebSocket (`server_scripts/run_taf_server.py`)
-- Dedicated multi-objective BO server via WebSocket (`server_scripts/run_mobo_server.py`)
-- Dedicated continual BO (ConBO) server via WebSocket (`server_scripts/run_conbo_server.py`)
-- Dedicated TAF+ server via WebSocket (`server_scripts/run_taf_plus_server.py`)
-- Dedicated NAF (MetaBO) server via WebSocket (`server_scripts/run_naf_server.py`)
-
-Default ports and configs:
-
-| Server | Script | Default port | Default `--config-path` |
-| --- | --- | --- | --- |
-| Generic BO (`bo_botorch` / `bo_scratch`) | `run_bo_server.py` | 8765 | *(none — must be passed, see below)* |
-| TAF | `run_taf_server.py` | 8766 | `configs/server_optimizers/bo_taf_server.yaml` |
-| MOBO | `run_mobo_server.py` | 8768 | `configs/server_optimizers/mobo_server.yaml` |
-| ConBO | `run_conbo_server.py` | 8769 | `configs/server_optimizers/conbo_server.yaml` |
-| TAF+ | `run_taf_plus_server.py` | 8770 | `configs/server_optimizers/taf_plus_server.yaml` |
-| NAF | `run_naf_server.py` | 8771 | `configs/server_optimizers/naf_server.yaml` |
+Every optimizer family has a WebSocket server, for objectives that live outside this process (a study app, a simulator, another language). One WebSocket connection is one session. The website's [Get started](https://www.csie.ntu.edu.tw/~yichi/openbo-website/get-started.html#servers) page lists the servers with their default ports and configs, and has a minimal client. This section is the full reference.
 
 ### Step 1. Start the optimizer server
 
@@ -857,42 +763,10 @@ Server -> Client:
 }
 ```
 
-### Step 3. Client loops and per-server protocols (Python)
+### Step 3. Per-server protocols and client loops (Python)
 
-```python
-import asyncio
-import json
-import websockets
+A minimal client for the generic BO server is on the website's Get started page. Notes that hold for every server:
 
-async def objective(x):
-    # Replace this with your external app evaluation.
-    return -((x[0] - 0.25) ** 2 + (x[1] - 0.75) ** 2)
-
-async def main():
-    async with websockets.connect("ws://127.0.0.1:8765") as ws:
-        await ws.send(json.dumps({
-            "type": "start",
-            "n_init": 2,
-            "n_iter": 8,
-            "seed": 0
-        }))
-
-        msg = json.loads(await ws.recv())
-        while msg["type"] != "done":
-            if msg["type"] != "suggest":
-                raise RuntimeError(msg)
-            x = msg["x"]
-            y = await objective(x)
-            await ws.send(json.dumps({"type": "observe", "x": x, "y": y}))
-            msg = json.loads(await ws.recv())
-
-        print("best_value:", msg["best_value"])
-        print("best_x:", msg["best_x"])
-
-asyncio.run(main())
-```
-
-Notes:
 - One WebSocket connection corresponds to one session.
 - The server enforces ask/tell order (`suggest` then `observe`).
 - `done` includes `x_values`, `y_values`, and `best_y_history` for logging/debugging.
@@ -1422,23 +1296,9 @@ Architecture note:
 - `openbo.optimizers.bo_botorch` and `openbo.optimizers.bo_scratch` are served by `server_optimizers/bo_server.py`.
 - `openbo.optimizers.bo_taf` is served by `server_optimizers/bo_taf_server.py` to keep TAF-specific config isolated. Random init is sampled once (same RNG draw pattern as `bootstrap()`), committed as one batched `observe`, and `n_iter` matches `run_bo_taf` (including the extra internal budget step when `n_init > 0`).
 
-
 ## 7. Multi-objective BO
 
-OpenBO implements multi-objective BO with correlated objectives, following
-Shah & Ghahramani, [*Pareto Frontier Learning with Expensive Correlated Objectives*](https://proceedings.mlr.press/v48/shahc16.html)
-(ICML 2016). Instead of one best value, the goal is the **Pareto front**: the
-designs that no other design beats in every objective. Progress is measured
-by the **Pareto hypervolume**, the volume between the front and a lower
-reference point `v_ref`. All objectives are **maximized**, inputs live in
-`[0, 1]^d`, and observations have shape `(n, L)`.
-
-For MOBO with groups of users in interaction design, see also Liao et al.,
-[*Practical approaches to group-level multi-objective Bayesian optimization in interaction technique design*](https://journals.sagepub.com/doi/full/10.1177/26339137241241313)
-(Collective Intelligence, 2024).
-
-The design decisions and the paper reproduction notes are in
-[`docs/plans/mobo.md`](docs/plans/mobo.md).
+Multi-objective BO with correlated objectives, following Shah & Ghahramani (ICML 2016); the website's Methods page has the overview. All objectives are **maximized**, inputs live in `[0, 1]^d`, and observations have shape `(n, L)`. The design decisions and the paper reproduction notes are in [`docs/plans/mobo.md`](docs/plans/mobo.md).
 
 ### 7.1 The pieces
 
@@ -1483,23 +1343,7 @@ Three implementation notes, each verified by tests (see the plan for details):
 
 ### 7.2 Run in Python
 
-```python
-from openbo.optimizers.mobo import MOBOConfig, run_mobo
-from openbo.test_functions.multi_objective import get_mo_function_spec
-
-spec = get_mo_function_spec("oka2")
-config = MOBOConfig(
-    bounds=[(0.0, 1.0)] * spec.dim,
-    v_ref=spec.v_ref,
-    w_ref=spec.w_ref,
-    model="slf",          # "independent" | "mt" | "slf"
-    acquisition="ceipv",  # "ceipv" | "ieipv"
-    seed=0,
-)
-result = run_mobo(spec.objective, config, n_iter=25)
-print(result.hv_history[-1], spec.true_hypervolume)
-print(result.pareto_y)  # the non-dominated objective vectors found
-```
+The website's Methods page has a `run_mobo` example on OKA2.
 
 `MOBOSequentialOptimizer` exposes the same `bootstrap()` / `suggest()` /
 `observe(x, y)` / `result()` ask/tell interface as the single-objective
@@ -1555,16 +1399,7 @@ The protocol is described in Section 5 ("MOBO server protocol").
 
 ## 8. Continual BO (ConBO)
 
-OpenBO implements continual BO across a sequence of users, following
-Liao et al., [*Continual Human-in-the-Loop Optimization*](https://dl.acm.org/doi/10.1145/3706598.3713603)
-(CHI 2025). Users arrive one after another, each with their own objective over
-the same design space. ConBO learns a **population model** from every finished
-user, so a new user starts from what earlier users revealed instead of from
-scratch. It then hands over to a GP fitted to that user alone. All objectives
-are **maximized** and inputs live in `[0, 1]^d`.
-
-The design decisions, deviations from the paper and measured costs are in
-[`docs/plans/conbo.md`](docs/plans/conbo.md).
+Continual BO across a sequence of users, following Liao et al. (CHI 2025); the website's Methods page has the overview. The design decisions, deviations from the paper and measured costs are in [`docs/plans/conbo.md`](docs/plans/conbo.md).
 
 ### 8.1 The pieces
 
@@ -1592,24 +1427,7 @@ The design decisions, deviations from the paper and measured costs are in
 
 ### 8.2 Run in Python
 
-A whole sequence of simulated users (the paper's Test 1 settings):
-
-```python
-from openbo.optimizers.conbo import ConBOConfig, run_conbo_sequence
-from openbo.test_functions.families import generate_user_variants, make_user_sequence
-
-# 15 users: Branin with random input shifts and output scalings
-variants = generate_user_variants("branin", 15, shift_range=0.3, scale_range=0.2, seed=0)
-users = make_user_sequence("branin", variants)
-
-config = ConBOConfig(input_dim=2, r0=16, dr=5, replay_max_variance=50.0, seed=0)
-result = run_conbo_sequence(
-    [u.objective for u in users], config, n_iter_per_user=30,
-    optima=[u.optimum for u in users], memory_dir="test_results/conbo/memory_demo",
-)
-for user in result.users:
-    print(user.name, user.n_random, user.best_so_far[-1], user.optimum)
-```
+The website's Methods page has a `run_conbo_sequence` example with the paper's Test 1 settings (15 simulated users).
 
 One user at a time, for example inside a study session. The population
 persists between sessions:
@@ -1619,11 +1437,9 @@ import numpy as np
 
 from openbo.optimizers.conbo import ConBOPopulation
 
-
 def run_trial(x):
     """Stand-in for your experiment: maximized, shape (1,). Here a Branin-like peak."""
     return np.array([-((x[0, 0] - 0.25) ** 2 + (x[0, 1] - 0.75) ** 2)])
-
 
 population = ConBOPopulation.load("test_results/conbo/memory_demo")
 opt = population.new_user("participant_16")
@@ -1695,18 +1511,7 @@ The protocol is described in Section 5 ("ConBO server protocol").
 
 ## 9. TAF+: transfer across users with several objectives
 
-OpenBO implements TAF+ from Liao et al.,
-[*A Meta-Bayesian Approach for Rapid Online Parametric Optimization for Wrist-based Interactions*](https://dl.acm.org/doi/full/10.1145/3613904.3642071)
-(CHI 2024). Earlier users (the *population*) each leave one GP per objective.
-A new user is then optimized with a transfer acquisition function that mixes
-the population's predicted improvements with the new user's own EI. Each
-user's designs are scored by a weighted sum of `L` objectives, all
-**maximized**, with inputs in `[0, 1]^d`.
-
-TAF+ extends the original TAF of Wistuba, Schilling and Schmidt-Thieme,
-[*Scalable Gaussian process-based transfer surrogates for hyperparameter optimization*](https://doi.org/10.1007/s10994-017-5684-y)
-(Machine Learning, 2018). **Wherever the CHI 2024 paper and the original
-TAF paper disagree, OpenBO follows the original.** In particular:
+TAF+ from Liao et al. (CHI 2024), built on the original TAF of Wistuba, Schilling and Schmidt-Thieme (Machine Learning, 2018); the website's Methods page has the overview. **Wherever the CHI 2024 paper and the original TAF paper disagree, OpenBO follows the original.** In particular:
 
 - the source term is the improvement of each earlier user's posterior mean
   over the best value it predicts among the new user's evaluated designs,
@@ -1850,14 +1655,7 @@ The protocol is described in Section 5 ("TAF+ server protocol").
 
 ## 10. NAF (MetaBO): a learned acquisition function
 
-OpenBO implements MetaBO from Volpp et al.,
-[*Meta-Learning Acquisition Functions for Transfer Learning in Bayesian Optimization*](https://arxiv.org/abs/1904.02642)
-(ICLR 2020). Instead of a hand-designed acquisition function such as EI, a
-small neural network, the **neural acquisition function (NAF)**, decides where
-to evaluate next. It is trained with reinforcement learning (PPO) on many
-related tasks from one *family*, so it can learn the family's structure (for
-example, where optima tend to be). At test time it runs on a new task of the
-same family, with an ordinary GP as surrogate.
+MetaBO from Volpp et al. (ICLR 2020): a neural acquisition function (NAF) trained with PPO on a family of related tasks; the website's Methods page has the overview.
 
 **Where the paper and the authors' reference code
 ([boschresearch/MetaBO](https://github.com/boschresearch/MetaBO)) disagree,
@@ -1865,15 +1663,6 @@ OpenBO follows the code.** The code is AGPL-3.0, so OpenBO reimplements its
 behaviour and copies none of it. The design record, with the paper and code
 notes, decisions, measurements and open questions, is
 [`docs/plans/naf.md`](docs/plans/naf.md). Read it before changing NAF code.
-
-Status: the **Branin family** works end to end (training, the optimizer, the
-benchmark and a WebSocket server), with one trained model archived in
-`benchmark_results/naf_branin/` and longer-trained ones in
-`meta-bo-training/naf/` (313 and 2000 iterations). **Goldstein-Price and
-Hartmann-3** are defined and tested (tasks, GP hyperparameters, candidate sets,
-`--family` in the scripts). Goldstein-Price and Hartmann-3 have models trained for
-600 iterations and benchmarked (`benchmark_results/naf_goldstein_price/` and
-`naf_hartmann3/`, Section 12).
 
 ### 10.1 The pieces
 
@@ -2085,51 +1874,27 @@ Hartmann-3). A 2D client is refused by a 3D server with a clear message. The
 margin. For an AF you train yourself, set `input_dim` and a `y_range` that
 covers the family's values.
 
-### 10.6 Results so far and open problems
+### 10.6 Open problems
 
-On Branin, the archived model (Section 12) is the best method from about 10
-to 15 evaluations: by evaluation 10 it is about 1 order of magnitude better
-than TAF and almost 2 better than EI. Two behaviours limit it:
+Results are in Section 12. Open questions 10–12 in [`docs/plans/naf.md`](docs/plans/naf.md):
 
-- **It starts worse than TAF.** Its first point is the same corner on every
-  task, a probe whose value tells the policy how the task is shifted and
-  scaled. The reward sums the log regret over all 30 steps, so the policy
-  gives up a good first guess for better later steps. TAF goes straight to
-  the averaged optimum of the training tasks.
-- **It plateaus after about 8 evaluations.** In evaluations 11–30, 46% of
-  its points are within 1e-3 of a point it has already evaluated (EI: 3%).
-  EI catches up at evaluation 20 and wins clearly at 30. The reference code
-  allows repeats too (no masking); its answer is longer training.
-
-Suggested next steps (open questions 10–12 in
-[`docs/plans/naf.md`](docs/plans/naf.md)):
-
-1. ✅ **Repeated points.** The reference code allows them, so OpenBO keeps
-   them. The training slowdown they seemed to cause was denormal floats in
-   the PPO update, now fixed (about 63 s per iteration instead of 140 s).
-2. **Train longer** (done once). A copy of the archived run, trained to 313
-   iterations (`meta-bo-training/naf/branin_metabo50_v1_long`), raised the
-   plateau from -3.36 to -3.88. Resuming to the reference's 2000 iterations
-   (`meta-bo-training/naf/branin_metabo50_v2_2000`, best checkpoint at
-   iteration 1585) reached a median log10 regret of about -5.6, better than EI
-   at every budget from 10 evaluations on (Section 12; this is the best
-   checkpoint, and the last iteration's model is somewhat worse). This is **one training
-   run with one seed**, and its checkpoint was picked by training return, so
-   repeat it with other seeds before relying on the number. Resume with
-   `--resume --n-iterations N`.
-3. **More families** (done, with limits). Both are defined, tested and
-   selectable with `--family` and archived. Goldstein-Price (600 iterations,
-   `benchmark_results/naf_goldstein_price/`) has NAF best from the fifth evaluation
-   on. Hartmann-3 (`naf_hartmann3/`) did not reproduce the paper at 600 iterations
-   (NAF stalled and TAF-ME and EI passed it), and does at 2000: the best
-   checkpoint is the best method from the sixth evaluation on (Section 12). Left:
-   repeat the long runs with other seeds (each is one run), find out why
-   Goldstein-Price does not improve beyond 600 iterations (it was continued to 2000
-   and did not), and look into the late instability of the Hartmann-3 and Branin
-   training curves. Server configs for
-   both families are shipped (Section 10.5).
-4. For human-in-the-loop use, note that MetaBO's reward weights every step
-   equally, which is why the first design is a probe.
+- **The first point is a probe.** It is the same corner on every task, and its
+  value tells the policy how the task is shifted and scaled. MetaBO's reward
+  sums the log regret over all `T` steps, so the policy gives up a good first
+  guess for better later steps, and TAF starts better. For human-in-the-loop
+  use, note that this reward weights every step equally.
+- **Repeated points.** A trained AF often re-evaluates points it has already
+  seen once it has converged. The reference code allows repeats (no masking),
+  so OpenBO keeps them. The training slowdown they seemed to cause was
+  denormal floats in the PPO update, now fixed (about 63 s per iteration
+  instead of 140 s).
+- **Training length.** Longer training lowered the Branin plateau a lot
+  (Section 12) and fixed Hartmann-3's stall at 600 iterations, but
+  Goldstein-Price did not improve beyond 600 iterations (it was continued to
+  2000). Each long run is **one training seed**, picked by best training
+  return; repeat with other seeds before relying on the numbers. The Branin and
+  Hartmann-3 training curves are unstable late in training. Resume a run with
+  `--resume --n-iterations N`.
 
 ## 11. Results folder convention
 
@@ -2167,140 +1932,59 @@ Practical workflow convention:
 - Use `--results-dir benchmark_results` for large, milestone-style benchmark runs that you want to keep stable over time.
 - Prefer unique `--test-id` values for archived runs in `benchmark_results/` to avoid accidental overwrite.
 
-## 12. Important benchmark results
+## 12. Archived benchmark results
 
-**Purpose:** Point to **saved benchmark campaigns** you can browse without rerunning optimizers: scratch BO vs BoTorch (with and without output noise), TAF families, continual BO, multi-objective BO, TAF+ and a first NAF run. Each archive under `benchmark_results/` has a `run_all.sh` or the commands that reproduce it.
+The headline tables and plots are on the website's [Benchmarks](https://www.csie.ntu.edu.tw/~yichi/openbo-website/benchmarks.html) page. Each archive under `benchmark_results/` has a `run_all.sh` (or the commands) that reproduces it, and most have their own README with the full tables and findings:
 
-We thoroughly compared the performance of our BO, implemented from scratch (`bo_scratch_grid` and `bo_scratch_multistart`), against BoTorch implementation (`bo_botorch`) on low-dimensional test functions. The results are stored in: 
-- `benchmark_results/benchmark_scratch_botorch`
-  - `/benchmark_BO_BoTorch_no_noise`: Benchmark our BO with BoTorch BO in functions without Gaussian noises in the output
-  - `/benchmark_BO_BoTorch_with_noise`: Benchmark our BO with BoTorch BO in functions with Gaussian noises in the output
-  - `/visual_search_behaviors_with_noise`: Detailed comparisons of the search behavior of different methods in these test functions
-- `benchmark_results/benchmark_taf`
-  - `/benchmark_taf_bo_{ackley,branin,hartmann6}`: family comparisons of TAF-M / TAF-R against the other methods, plus 2D search-path plots for TAF and BoTorch
+| Archive | What it holds | Run your own |
+| --- | --- | --- |
+| `benchmark_scratch_botorch/` | Scratch BO (`bo_scratch_grid`, `bo_scratch_multistart`) vs BoTorch and random search, with (`benchmark_BO_BoTorch_with_noise/`) and without (`benchmark_BO_BoTorch_no_noise/`) output noise, plus search-behaviour plots (`visual_search_behaviors_with_noise/`) | Sections 2–3 |
+| `benchmark_taf/` | `benchmark_taf_bo_{ackley,branin,hartmann6}/`: TAF-M / TAF-R family comparisons, plus 2D search-path plots for TAF and BoTorch | Section 4 |
+| `conbo_branin_quick/` | ConBO vs standard BO, Test 1, one seed (README) | Section 8.3 |
+| `conbo_branin_5seeds/` | ConBO vs standard BO, TAF-M, TAF-R and a single GP, Test 1, 5 seeds; about 47 minutes on 8 cores (README) | Section 8.3 |
+| `mobo_2obj/` | OKA2 and DTLZ1a, 5 methods × 3 seeds × 40 iterations | Section 7.3 |
+| `taf_plus_sims/` | CHI 2024 App. B Simulations 1 and 2, one seed, with cached populations and decay searches; about 3 hours on 8 cores (README) | Section 9.3 |
+| `naf_branin/` | The trained Branin AF (`training/branin_metabo50_v1/`, 236 iterations) and 5 methods × 100 test tasks (README) | Sections 10.3–10.4 |
+| `naf_goldstein_price/` | The same for Goldstein-Price, 600 iterations (README) | Sections 10.3–10.4 |
+| `naf_hartmann3/` | The same for Hartmann-3, 600 and 2000 iterations (README) | Sections 10.3–10.4 |
 
 Saved TAF source runs live under `meta-bo-training/taf-gps/` (`branin_train_v1`
 from `train_taf.py`, `branin_server_end_to_end` from the Section 6 server
-workflow). `_load_source_surrogates` reads `gp_states/` recursively, and all 12
-tasks of `branin_train_v1` are loaded (earlier, 11 of them sat in a nested
-`gp_states/train_task_0/` folder that the loader did not read, so TAF used a
-single source from that run; see also Section 4).
+workflow). All 12 tasks of `branin_train_v1` are loaded (earlier, 11 of them
+sat in a nested folder the loader did not read; see Section 4.1).
 
-**Continual BO** (Section 8): two archived runs on the paper's Branin setting (Test 1: 15 simulated users, 30 evaluations each).
-- `benchmark_results/conbo_branin_quick`: a first one-seed comparison with standard BO.
-- `benchmark_results/conbo_branin_5seeds`: ConBO against standard BO, TAF-M, TAF-R and a single GP over all users, 5 seeds (`run_all.sh` reproduces it in about 47 minutes on 8 cores). Mean log10 regret over users 4-15 (lower is better):
+**Multi-objective BO** (`mobo_2obj/`, no README of its own). The budget is
+reduced: 5 initial points plus 40 iterations, 3 seeds (the paper uses 100
+iterations and 50 repeats). On OKA2, CEIPV-SLF, IEIPV and BoTorch end within
+noise of each other (BoTorch rises fastest early); CEIPV-MT stalls, as its
+single shared kernel suits OKA2 poorly. On DTLZ1a the NumPy methods reach a
+final log10 hypervolume regret of about 1.3–1.7 while BoTorch plateaus near
+3.2. With 3 seeds, the differences between CEIPV-SLF and IEIPV are not
+significant. The strongly correlated SLF-GP problems, where the paper reports
+the clearest gains from modelling correlation, and VLMOP3 have not been run yet.
 
-| Method | 1 evaluation | 5 | 10 | 30 |
-| --- | --- | --- | --- | --- |
-| ConBO | **0.69** | **0.42** | 0.17 | -1.91 |
-| Standard BO | 1.46 | 0.93 | 0.63 | **-2.15** |
-| TAF-M | 0.94 | 0.65 | 0.25 | -0.63 |
-| TAF-R | 0.85 | 0.47 | **0.10** | -0.16 |
-| Single GP | 1.09 | 0.51 | 0.28 | -0.19 |
-
-ConBO is best at the start of a session, and the transfer methods catch up by 5-10 evaluations. By 30 evaluations standard BO is slightly ahead. TAF and the single GP stall well above both; the archive README explains why.
-
-To run your own, see Section 8.3.
-
-**Multi-objective BO** (Section 7): a first comparison on OKA2 and DTLZ1a,
-stored in `benchmark_results/mobo_2obj` (`plots/`, `trajectories/`, and
-`run_all.sh` to reproduce it). The budget is reduced: 5 initial points plus
-40 iterations, 3 seeds (the paper uses 100 iterations and 50 repeats). Mean
-final log10 hypervolume regret (lower is better):
-
-| Method | OKA2 | DTLZ1a | Time per run |
-| --- | --- | --- | --- |
-| Random | 1.14 | 4.22 | <1 s |
-| CEIPV-SLF | **0.72** | 1.39 | 9–14 s |
-| CEIPV-MT | 1.03 | 1.71 | 13–18 s |
-| IEIPV | 0.77 | **1.28** | 6–8 s |
-| BoTorch qLogNEHVI | 0.76 | 3.18 | 5–6 min |
-
-On OKA2, CEIPV-SLF, IEIPV and BoTorch end within noise of each other
-(BoTorch rises fastest early); CEIPV-MT stalls, as its single shared kernel
-suits OKA2 poorly. On DTLZ1a the NumPy methods reach about 1.3–1.7 while
-BoTorch plateaus near 3.2. With 3 seeds, the differences between CEIPV-SLF and
-IEIPV are not significant. The strongly correlated SLF-GP problems, where the
-paper reports the clearest gains from modelling correlation, and VLMOP3 have
-not been run yet.
-
-**TAF+** (Liao et al., CHI 2024, App. B): `benchmark_results/taf_plus_sims`
-holds Simulations 1 and 2, one seed each, with its own README (tables,
-plots, findings) and a `run_all.sh` (about 3 hours on 8 cores including
-population modeling). Each setting has 3 objectives over a 4D input, 10
-population users and 10 new users. Every method gets 20 evaluations per new
-user, scored by the noise-free weighted sum. Mean log10 regret of the best
-design so far in Simulation 2 (lower is better):
-
-| User range | TAF+ @1 | TAF+ @20 | BO @20 | Random @20 |
-| --- | --- | --- | --- | --- |
-| 0.05 | **-2.47** | **-2.47** | -1.49 | -0.75 |
-| 0.1 | **-1.87** | **-1.87** | -1.15 | -0.77 |
-| 0.2 | **-1.26** | **-1.29** | -1.12 | -0.78 |
-| 0.3 | -0.89 | -1.07 | **-1.18** | -0.73 |
-
-- **Transfer works, and fades as users become more different.** The
-  first design, the population's product-of-experts optimum, already beats 20
-  evaluations of BO for ranges up to 0.2. In Simulation 1 (near-identical
-  users) it reaches a log10 regret of about -3.5 for all six objective
-  weightings.
-- **After the first design, TAF+ explores.** Its best design barely improves,
-  and at range 0.3 BO overtakes it. The designs it shows from evaluation 2 on
-  are about as good as random ones. Once the population's optimum has been
-  evaluated, each earlier user's predicted improvement (original TAF eq. 47,
-  clipped at 0) is zero almost everywhere, so only the new user's EI is left.
-  With mixed objective weights, the CHI paper's per-objective sum (eq. 4) adds
-  a pull toward each single objective's optimum. Both follow from the papers
-  as written; see open questions 5 and 7 in
-  [`docs/plans/taf_plus.md`](docs/plans/taf_plus.md).
-- **The decay barely matters here.** The leave-one-out search picks late,
-  slow decay in every range, within 0.03 of no decay, unlike the paper's
-  earlier, faster choices.
-
-To run your own, see Section 9.3.
-
-**NAF (MetaBO)** (Volpp et al., ICLR 2020): `benchmark_results/naf_branin`
-holds one Branin run with its own README, `run_all.sh`, the trained model
-(`training/branin_metabo50_v1/`), trajectories and plots. The neural AF was
-trained with PPO on the 50 MetaBO-50 tasks for 236 iterations (the reference
-trains about 2000; the best checkpoint is iteration 193)
-baselines on 100 unseen translated and scaled Branin tasks, 30 evaluations
-each. Median log10 simple regret (lower is better):
+**NAF on Branin, trained longer.** These runs are not in `naf_branin/`, whose
+README covers only the archived 236-iteration model. Median log10 simple
+regret on the same 100 test tasks:
 
 | Method | @1 | @5 | @10 | @15 | @20 | @30 |
 | --- | --- | --- | --- | --- | --- | --- |
-| NAF | -0.66 | -1.60 | -3.31 | -3.35 | -3.36 | -3.36 |
-| TAF-ME-50 | **-1.19** | **-1.93** | -2.26 | -2.36 | -2.48 | -2.86 |
-| TAF-R-50 | **-1.19** | -1.80 | -1.95 | -2.20 | -2.54 | -2.97 |
-| EI | -0.15 | -0.87 | -1.53 | -2.76 | -3.37 | -4.98 |
-| Random | -0.19 | -0.86 | -1.13 | -1.25 | -1.31 | -1.58 |
+| NAF, archived (236 iterations) | -0.66 | -1.60 | -3.31 | -3.35 | -3.36 | -3.36 |
 | NAF, 313 iterations | -0.66 | -1.60 | -3.82 | -3.88 | -3.88 | -3.88 |
 | NAF, 2000 iterations | -0.75 | -1.57 | **-4.97** | **-5.62** | **-5.62** | **-5.62** |
+| EI | -0.15 | -0.87 | -1.53 | -2.76 | -3.37 | **-4.98** |
 
-- **NAF is best from about 10 to 15 evaluations.** It beats TAF-R on 77% of
-  tasks at evaluation 10, and its mean log10 regret over the first 15
-  evaluations is the lowest of all methods.
-- **TAF starts better.** NAF's first point is the same corner on every task, a
-  probe whose value tells the policy how the task is shifted and scaled. The
-  reward sums the regret over all 30 steps, so the policy trades a good first
-  guess for better later steps.
-- **NAF plateaus after about 8 evaluations.** Almost half of its later points
-  repeat or nearly repeat earlier ones, so EI catches up at 20 and wins at 30.
-  The reference code allows repeats too; the training slowdown they seemed
-  to cause was denormal floats, now fixed (open question 10 in
-  [`docs/plans/naf.md`](docs/plans/naf.md)).
-- **Longer training lowers the plateau a lot.** The last two rows are copies
-  of the run trained longer, not the archived `v1`. With 313 iterations
-  (`meta-bo-training/naf/branin_metabo50_v1_long`, best at 307;
-  `test_results/naf/trajectories/v2_long313_naf_branin.json`) the plateau is
-  -3.88 instead of -3.36, and the mean over evaluations 1–30 (-2.95) beats EI
-  (-2.77) and both TAFs. With 2000 iterations, the reference's length
-  (`meta-bo-training/naf/branin_metabo50_v2_2000`, best checkpoint at
-  iteration 1585; `test_results/naf/trajectories/v3_2000_naf_branin.json`), the median reaches -5.62 and the mean over
+- With 313 iterations (`meta-bo-training/naf/branin_metabo50_v1_long`, best at
+  307; `test_results/naf/trajectories/v2_long313_naf_branin.json`) the plateau
+  is -3.88 instead of -3.36, and the mean over evaluations 1–30 (-2.95) beats
+  EI (-2.77) and both TAFs.
+- With 2000 iterations, the reference's length
+  (`meta-bo-training/naf/branin_metabo50_v2_2000`, best checkpoint at iteration
+  1585; `test_results/naf/trajectories/v3_2000_naf_branin.json`), the mean over
   evaluations 1–30 is -4.62. From 10 evaluations on it is below EI at every
-  budget (for this checkpoint), and close to the paper's Figure 2(a) (about -5). It still repeats
+  budget, and close to the paper's Figure 2(a) (about -5). It still repeats
   some points (on average 19.6 of the 30 evaluations are distinct, against
-  24.4 for the archived `v1`).
+  24.4 for the archived model).
 - **Read the 2000-iteration row with care.** It comes from **one training run
   (seed 0)** on one set of 100 test tasks, with no confidence interval, and
   from the checkpoint with the best training return (iteration 1585). The
@@ -2308,75 +1992,11 @@ each. Median log10 simple regret (lower is better):
   final log10 regret was about -5.2 around iteration 1585, about -3.7 around
   1620 and about -4.4 at the end (`test_results/naf/plots/v3_2000_training.png`).
   The model of the **last** iteration (`af.pt`) reaches a median of -4.88 at 30
-  evaluations (-4.49 at 10) and a mean over evaluations 1–30 of -3.51, against
-  -5.62 and -4.62 for the checkpoint in the table, so it is slightly behind EI
-  (-4.98) at 30 evaluations. The table is therefore what the best checkpoint of
-  this run reaches, an upper estimate of what a training gives, not an average.
-  The figures are `test_results/naf/plots/v3_2000_branin.png` (the regret curves
-  against the baselines, which are the archived `v1` runs) and
-  `v3_2000_training.png`. See Section 10.6 for the next steps.
-
-**NAF on Goldstein-Price**: `benchmark_results/naf_goldstein_price` (same layout,
-with its own README and `run_all.sh`). The model was trained for 600 iterations
-(the reference trains about 2000), from one seed, and tested on 100 unseen tasks
-with the same baselines. Median log10 simple regret (lower is better):
-
-| Method | @1 | @5 | @10 | @15 | @20 | @30 |
-| --- | --- | --- | --- | --- | --- | --- |
-| NAF | 0.56 | **-0.50** | **-1.59** | **-1.99** | **-2.17** | **-2.37** |
-| TAF-ME-50 | **0.05** | -0.27 | -0.40 | -1.29 | -1.56 | -1.68 |
-| TAF-R-50 | **0.05** | -0.30 | -0.46 | -0.99 | -1.14 | -1.32 |
-| EI | 0.52 | 0.26 | 0.03 | -0.02 | -0.12 | -1.28 |
-| Random | 0.49 | 0.28 | 0.19 | 0.12 | 0.11 | 0.04 |
-
-- **NAF is best from the fifth evaluation on**, at every budget up to 30; it
-  beats EI on 85–94% of tasks from evaluation 5 on. TAF starts better, because
-  NAF's first point is a probe (the same point on every task).
-- **EI is slow on this function**: it stays near regret 1 until about
-  evaluation 20 (the peak is sharp), so unlike on Branin it does not catch up.
-- At 30 evaluations the numbers are close to the paper's Figure 2(b), as far as
-  that log-scale figure can be read by eye (MetaBO-50 about -2.5, TAF-ME -2,
-  TAF-R -1.3, EI -1, random 0). **This is one training run, with no confidence
-  interval, and the checkpoint is the best-return one (iteration 499).**
-- **Training longer did not help here**, unlike on Branin and Hartmann-3. The run
-  was continued to 2000 iterations: the best-return checkpoint stayed at iteration
-  499 and the model of the last iteration is worse (median -1.97 at 30
-  evaluations, mean -1.09 over the 30 evaluations; `benchmark_results/naf_goldstein_price/`,
-  "2000 iterations without improvement").
-
-**NAF on Hartmann-3**: `benchmark_results/naf_hartmann3` (same layout). One
-seed, 100 unseen tasks. The run was first stopped at 600 iterations and then
-resumed to the reference's 2000. Median log10 simple regret (lower is better):
-
-| Method | @1 | @5 | @10 | @15 | @20 | @30 |
-| --- | --- | --- | --- | --- | --- | --- |
-| NAF, 2000 iterations | 0.25 | -0.74 | **-2.61** | **-3.22** | **-3.26** | **-3.27** |
-| NAF, 600 iterations | 0.56 | -0.81 | -2.03 | -2.12 | -2.12 | -2.12 |
-| TAF-ME-50 | **-0.46** | -1.11 | -1.81 | -2.06 | -2.64 | -3.06 |
-| TAF-R-50 | **-0.46** | **-1.29** | -1.44 | -1.61 | -1.80 | -2.05 |
-| EI | 0.53 | 0.48 | -0.18 | -1.33 | -2.05 | -2.61 |
-| Random | 0.55 | 0.30 | 0.07 | -0.04 | -0.13 | -0.24 |
-
-- **At 600 iterations NAF did not reproduce the paper**: it led only around
-  evaluations 10 and 15, then stayed at -2.12 and both TAF-ME and EI passed it.
-- **At 2000 iterations it does.** The best checkpoint (iteration 1454) is the
-  best method from the sixth evaluation on, with a median of -3.27 at 30
-  evaluations (TAF-ME -3.06, EI -2.61) and the lowest mean over the 30 evaluations
-  (-2.61 against TAF-ME's -2.10). It has a better value than EI on 85–96% of tasks
-  from evaluation 5 on, and than TAF-ME on 83–95% at evaluations 10 to 20 (63% at
-  30). The training length was the cause of the stall: the authors' own pretrained
-  weights, run in OpenBO's environment, reach -3.14 (`docs/plans/naf.md`,
-  "Hartmann-3 diagnosis"), so the environment, the evaluation and the GP
-  hyperparameters were fine.
-- **Caveats.** One run per length, no confidence interval. The checkpoint is the
-  best by training return, taken just before an unstable stretch of the training
-  curve with spikes near iterations 1520, 1620, 1760 and 1960; the model of the
-  last iteration is as good late (-3.30 at 30) but much worse early (-0.76 at 10
-  evaluations, mean -1.91 over the 30 evaluations). In the paper's Figure 2(c)
-  (read by eye) MetaBO and EI end near -2.4. 56% of its points in evaluations
-  11–30 are exact repeats, after the search has converged.
-
-To run your own, see Sections 10.3 and 10.4.
+  evaluations (-4.49 at 10) and a mean over evaluations 1–30 of -3.51, so it is
+  slightly behind EI (-4.98) at 30 evaluations. The table is therefore what the
+  best checkpoint of this run reaches, an upper estimate of what a training
+  gives, not an average. The regret curves against the baselines (the archived
+  runs) are in `test_results/naf/plots/v3_2000_branin.png`.
 
 ## 13. Project structure
 
@@ -2438,38 +2058,6 @@ To run your own, see Sections 10.3 and 10.4.
 - `meta-bo-training/` - saved TAF source runs (`taf-gps/`), scratch-server artifacts (`server-scratch-artifacts/`) and NAF training runs (`naf/`).
 - `notebooks/` - planned teaching notebooks (`01_bo_from_scratch` … `05_meta_bo_taf_conbo_naf`); currently empty placeholders.
 
-## License
+## License and citation
 
-OpenBO is licensed under the MIT License. See the [LICENSE](LICENSE) file for the full license text.
-
-## Citation
-
-If you use OpenBO in your research, we strongly recommend you cite:
-
-```bibtex
-@software{liao2026openbo,
-  author    = {Yi-Chi Liao and Chih-Hao Hsu and Kuan-Lin Lee},
-  title     = {{OpenBO}: An Open-Source Library for Bayesian Optimization},
-  year      = {2026},
-  publisher = {GitHub},
-  url       = {https://github.com/yichiliao/openbo}
-}
-```
-
-Citation of OpenBO helps support its continued development and enables reproducible research.
-
-If you use one of the methods below, please also cite the paper it implements.
-The BibTeX entries are in [`relevant_papers/references.bib`](relevant_papers/references.bib),
-under the keys listed here.
-
-| Method in OpenBO | Paper | BibTeX key |
-| --- | --- | --- |
-| TAF (`bo_taf`), and the base of TAF+ | Wistuba, Schilling and Schmidt-Thieme, Machine Learning 2018 | `wistuba2018taf` |
-| TAF+ (`bo_taf_plus`) | Liao et al., CHI 2024 | `liao2024taf_plus_chi` |
-| Continual BO (`conbo`) | Liao et al., CHI 2025 | `liao2025conbo_chi` |
-| Multi-objective BO, CEIPV (`mobo`) | Shah and Ghahramani, ICML 2016 | `shah2016pareto` |
-| NAF / MetaBO (`naf`) | Volpp et al., ICLR 2020 | `volpp2020metabo` |
-
-## Contact
-
-This repo is mainly maintained by Yi-Chi Liao (yichi@csie.ntu.edu.tw).
+OpenBO is licensed under the MIT License; see [LICENSE](LICENSE). To cite OpenBO, and the paper behind each method you use, see the website's [Publications](https://www.csie.ntu.edu.tw/~yichi/openbo-website/publications.html) page; the BibTeX entries are in [`relevant_papers/references.bib`](relevant_papers/references.bib). OpenBO is maintained by Yi-Chi Liao (yichi@csie.ntu.edu.tw).

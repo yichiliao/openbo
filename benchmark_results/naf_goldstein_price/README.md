@@ -1,7 +1,7 @@
 # NAF (MetaBO) on the Goldstein-Price family
 
 One run of MetaBO (Volpp et al., ICLR 2020) as implemented in OpenBO, made on
-2026-10-15 on 8 CPU cores. The user guide is README Section 10; the design
+2026-10-15 on 8 CPU cores. The user guide is `docs/guide/naf.md`; the design
 record, with the settings read from the reference code, is `docs/plans/naf.md`
 (Phase 5, "Goldstein-Price and Hartmann-3: settings"). `run_all.sh` lists the
 commands (about 1.6 hours).

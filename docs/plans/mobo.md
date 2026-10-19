@@ -297,7 +297,7 @@ All methods beat random, but two seeds are not enough to rank them; that is Phas
 
 **Server**
 - `server_optimizers/mobo_server.py`, `server_scripts/run_mobo_server.py` (port 8768), `server_scripts/run_mobo_fake_client.py` and `configs/server_optimizers/mobo_server.yaml` (set up for OKA2).
-- **Protocol** (README §5, "MOBO server protocol"):
+- **Protocol** (`docs/guide/servers.md`, "MOBO server protocol"):
   - `observe.y` is a length-L list, each value checked against its objective's `y_range`.
   - `v_ref`/`w_ref` default to the range minimums/maximums.
   - `start` can override the model, acquisition, hyperparameter mode, pool size, `n_rescore`, `n_init` (at least 1), `n_iter` and `seed`.

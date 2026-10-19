@@ -43,3 +43,6 @@ test_results/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Project website (kept locally; hosted on the group website)
+website/

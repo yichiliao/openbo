@@ -1,7 +1,7 @@
 # NAF (MetaBO) on the Branin family
 
 One run of MetaBO (Volpp et al., ICLR 2020) as implemented in OpenBO, made on
-2026-10-11/12 on 8 CPU cores. The user guide is README Section 10; the design
+2026-10-11/12 on 8 CPU cores. The user guide is `docs/guide/naf.md`; the design
 record, with every deviation and open question, is `docs/plans/naf.md`.
 `run_all.sh` reproduces everything (about 7 hours).
 
@@ -60,5 +60,5 @@ Mean log10 regret over evaluations 1–10 / 1–15 / 1–30: NAF -1.92 / **-2.28
   training curve improved in jumps (iterations 0–100 and 160–190) with a
   flat stretch between, then got slightly worse after 200.
 
-Next steps are in README Section 10.6 and `docs/plans/naf.md` (open
+Next steps are in `docs/guide/naf.md` ("Open problems") and `docs/plans/naf.md` (open
 questions 10–12).

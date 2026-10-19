@@ -260,7 +260,7 @@ One seed of the paper's Branin Test 1, ConBO against standard BO with the same m
 ### Phase 7: Docs and server (README section and server done 2026-10-11)
 - ✅ README §9 "Continual BO (ConBO)": pieces, Python usage for a whole sequence and for one user per session, notes and switches, benchmark commands. Later sections renumbered (results folders §10, benchmark results §11, structure §12).
 - README: move ConBO from the roadmap into its own section, plus the §0 scope list, §10 results and §11 structure.
-- ✅ Server (2026-10-11): `server_optimizers/conbo_server.py`, port 8769. One WebSocket session per user, one user at a time, population in `memory_dir`; `stop` discards unless `store: true`. See README §5 and §8.4.
+- ✅ Server (2026-10-11): `server_optimizers/conbo_server.py`, port 8769. One WebSocket session per user, one user at a time, population in `memory_dir`; `stop` discards unless `store: true`. See `docs/guide/servers.md` and `docs/guide/conbo.md`.
 
 ## Out of scope (first pass)
 - Real users and the VR typing study.

@@ -1,7 +1,7 @@
 # NAF (MetaBO) on the Hartmann-3 family
 
 One run of MetaBO (Volpp et al., ICLR 2020) as implemented in OpenBO, made on
-2026-10-15 on 8 CPU cores. The user guide is README Section 10; the design
+2026-10-15 on 8 CPU cores. The user guide is `docs/guide/naf.md`; the design
 record, with the settings read from the reference code, is `docs/plans/naf.md`
 (Phase 5). `run_all.sh` lists the commands (about 3.2 hours for `v1`, 9.5 hours for `v2`).
 

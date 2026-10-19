@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """WebSocket clients: one session per **test** variant from a saved family split.
 
-Used in README §4c Step 7 with ``run_taf_server``. Train-phase helper:
+Used in docs/guide/taf.md (end-to-end TAF workflow, Step 7) with ``run_taf_server``. Train-phase helper:
 ``run_manual_family_train_clients.py``.
 
 Run from repo root, with the TAF server already running::
@@ -66,7 +66,7 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "If set, write each terminal server message (done/stopped) as JSON "
-            "for trajectory plots (see README §4c Step 8)."
+            "for trajectory plots (see docs/guide/taf.md, end-to-end TAF workflow, Step 8)."
         ),
     )
     return p.parse_args()

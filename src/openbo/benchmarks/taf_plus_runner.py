@@ -17,6 +17,17 @@ user experiences, and of the best design so far, ``regret``):
 - ``taf``: TAF+ without decay, the paper's "TAF (multi-objective)" baseline.
 - ``bo``: scratch BO with EI on the noisy weighted sum, ``bo_init`` random starts.
 - ``random``: uniform random points.
+- ``taf_ehvi``: TAF-EHVI (``optimizers/mobo_taf.py``) with the population's
+  users as sources, converted by ``write_population_sources``. It optimizes
+  hypervolume and never sees ``alpha``; ``mobo_init`` random starts (it needs
+  at least one), then qLogNEHVI blended with the sources' improvements, with
+  the TAF-EHVI defaults (objective-wise TAF-R weights, no warmup, no decay).
+- ``mobo``: plain qLogNEHVI with the same starts and settings, TAF-EHVI
+  without sources.
+
+``hypervolume_curve`` and ``pareto_hypervolume`` score any run on the
+noise-free hypervolume of the designs evaluated so far, against the user's
+true Pareto front.
 
 Deviations from the paper: qLogNEHVI instead of qEHVI, with 256 raw samples
 and 4 restarts instead of 1024 and 10 (the hypervolume reached was about the
@@ -34,6 +45,8 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import tempfile
+import warnings
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -47,14 +60,16 @@ from openbo.optimizers.bo_taf_plus import (
     TAFPlusPopulation,
     run_bo_taf_plus,
 )
-from openbo.optimizers.mobo_botorch import MOBoTorchConfig, run_mobo_botorch
+from openbo.benchmarks.hypervolume import hypervolume
+from openbo.optimizers.mobo_botorch import MOBoTorchConfig, compute_hypervolume, run_mobo_botorch
+from openbo.optimizers.mobo_taf import MOTAFConfig, MOTAFSequentialOptimizer, write_population_sources
 from openbo.test_functions.taf_plus_users import (
     SPHERE_INPUT_DIM,
     SphereUser,
     make_sphere_users,
 )
 
-TAF_PLUS_METHODS = ("taf_plus", "taf", "bo", "random")
+TAF_PLUS_METHODS = ("taf_plus", "taf", "bo", "random", "taf_ehvi", "mobo")
 
 # Shift and scale range per simulation (App. B.3-B.4).
 TAF_PLUS_SIMULATIONS = {
@@ -94,6 +109,7 @@ class SimulationSettings:
     n_evals: int = 20
     bo_init: int = 5
     n_candidates: int = 256
+    mobo_init: int = 1
 
 
 def simulation_users(sim: str, seed: int, settings: SimulationSettings) -> tuple[list[SphereUser], list[SphereUser]]:
@@ -165,6 +181,57 @@ def build_population(
     return population
 
 
+def _run_mobo_user(
+    user: SphereUser,
+    rng: np.random.Generator,
+    seed: int,
+    settings: SimulationSettings,
+    source_dir: Path | None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Run qLogNEHVI on one new user, with TAF-EHVI sources when ``source_dir`` is given."""
+    common = dict(
+        bounds=[(0.0, 1.0)] * SPHERE_INPUT_DIM,
+        v_ref=list(settings.v_ref),
+        n_init=settings.mobo_init,
+        num_restarts=settings.mobo_restarts,
+        raw_samples=settings.mobo_raw_samples,
+        seed=seed,
+    )
+    n_iter = settings.n_evals - settings.mobo_init
+    with contextlib.redirect_stdout(io.StringIO()), warnings.catch_warnings():
+        # BoTorch warns about fitting a GP to very few points.
+        warnings.simplefilter("ignore")
+        if source_dir is None:
+            result = run_mobo_botorch(lambda x: user.observe(x, rng), MOBoTorchConfig(**common), n_iter=n_iter)
+            return result.x_obs, result.y_obs
+        optimizer = MOTAFSequentialOptimizer(MOTAFConfig(**common, taf_run_dir=source_dir, n_iter=n_iter))
+        optimizer.bootstrap(lambda x: user.observe(x, rng))
+        for _ in range(n_iter):
+            x = optimizer.suggest()
+            optimizer.observe(x, user.observe(x, rng))
+        return optimizer.x_obs, optimizer.y_obs
+
+
+def pareto_hypervolume(user: SphereUser, v_ref: tuple[float, ...], step: float = 0.025) -> float:
+    """Hypervolume of the user's noise-free Pareto front above ``v_ref``.
+
+    Each objective is a concave quadratic, so every Pareto-optimal design
+    maximizes some weighted sum of the objectives: the front is traced by the
+    weighted-sum maximizers over a grid on the weight simplex (a slight
+    underestimate, closing as ``step`` shrinks).
+    """
+    k = round(1.0 / step)
+    weights = [(i / k, j / k, (k - i - j) / k) for i in range(k + 1) for j in range(k + 1 - i)]
+    designs = np.vstack([user.weighted_optimum(np.asarray(w))[0] for w in weights])
+    return compute_hypervolume(user.noise_free(designs), np.asarray(v_ref, dtype=np.float64))
+
+
+def hypervolume_curve(user: SphereUser, x_obs: np.ndarray, v_ref: tuple[float, ...]) -> np.ndarray:
+    """Noise-free hypervolume of the first ``t`` designs, for ``t = 1..n``."""
+    y = user.noise_free(np.asarray(x_obs, dtype=np.float64))
+    return np.asarray([hypervolume(y[: t + 1], v_ref) for t in range(y.shape[0])])
+
+
 def run_taf_plus_method(
     method: str,
     sim: str,
@@ -180,6 +247,9 @@ def run_taf_plus_method(
         raise ValueError(f"Unknown method '{method}'.")
     alpha = np.asarray(objective_weights, dtype=np.float64)
     _, new_users = simulation_users(sim, seed, settings)
+    source_dir = None
+    if method == "taf_ehvi":
+        source_dir = write_population_sources(population, tempfile.mkdtemp(prefix="taf_ehvi_sources_"))
     records = []
     for i, user in enumerate(new_users):
         rng = np.random.default_rng(seed * 7919 + i)
@@ -195,12 +265,17 @@ def run_taf_plus_method(
                 refine_suggestion=True,
                 seed=user_seed,
             )
-            result = run_bo_taf_plus(lambda x: user.observe(x, rng), config, population, settings.n_evals)
+            def user_objective(
+                x: np.ndarray, user: SphereUser = user, rng: np.random.Generator = rng
+            ) -> np.ndarray:
+                return user.observe(x, rng)
+
+            result = run_bo_taf_plus(user_objective, config, population, settings.n_evals)
             x_obs, y_obs = result.x_obs, result.y_obs
         elif method == "bo":
             observed: list[np.ndarray] = []
 
-            def weighted(x: np.ndarray) -> np.ndarray:
+            def weighted(x: np.ndarray, user=user, rng=rng, observed=observed) -> np.ndarray:
                 y = user.observe(x, rng)
                 observed.append(y)
                 return y @ alpha
@@ -217,6 +292,8 @@ def run_taf_plus_method(
             x_obs, y_obs = bo.x_obs, np.vstack(observed)
             if y_obs.shape[0] != x_obs.shape[0]:
                 raise RuntimeError("BO evaluated the objective outside its recorded observations.")
+        elif method in ("taf_ehvi", "mobo"):
+            x_obs, y_obs = _run_mobo_user(user, rng, user_seed, settings, source_dir)
         else:
             x_obs = np.random.default_rng(user_seed).random((settings.n_evals, SPHERE_INPUT_DIM))
             y_obs = user.observe(x_obs, rng)

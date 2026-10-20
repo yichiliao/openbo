@@ -5,13 +5,18 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+import torch
+
 from openbo.benchmarks.taf_plus_runner import (
     TAF_PLUS_METHODS,
     SimulationSettings,
     build_population,
+    hypervolume_curve,
+    pareto_hypervolume,
     run_taf_plus_method,
     simulation_users,
 )
+from openbo.optimizers.mobo_taf import _load_mo_source_surrogates, write_population_sources
 from openbo.test_functions.taf_plus_users import (
     SPHERE_CENTRES,
     SphereUser,
@@ -82,3 +87,25 @@ def test_every_method_runs_on_the_new_users(method, population) -> None:
     np.testing.assert_allclose(regret, np.minimum.accumulate(instant))
     _, new_users = simulation_users("sim2_r01", 0, TINY)
     assert record["shift"] == list(new_users[0].shift)
+
+
+def test_population_sources_replay_the_population_means(population, tmp_path) -> None:
+    """TAF-EHVI rebuilds each user's GPs from the converted states; the means must match TAF+'s."""
+    sources = _load_mo_source_surrogates(write_population_sources(population, tmp_path))
+    assert [s.name for s in sources] == [u.name for u in population.users]
+    x = np.random.default_rng(0).random((25, 4))
+    for source, user in zip(sources, population.users):
+        replayed = source.mean_fn(torch.tensor(x, dtype=torch.double)).detach().numpy()
+        expected = np.column_stack([gp.posterior(x)[0] for gp in user.gps])
+        np.testing.assert_allclose(replayed, expected, rtol=1e-5, atol=1e-6)
+
+
+def test_hypervolume_curve_is_monotone_and_below_the_front() -> None:
+    _, new_users = simulation_users("sim2_r01", 0, TINY)
+    user = new_users[0]
+    v_ref = (-1.0, -1.0, -1.0)
+    curve = hypervolume_curve(user, np.random.default_rng(1).random((8, 4)), v_ref)
+    front = pareto_hypervolume(user, v_ref, step=0.1)
+    assert np.all(np.diff(curve) >= -1e-12)
+    # The front's own designs score the front's hypervolume; random designs score less.
+    assert 0.0 < curve[-1] < front

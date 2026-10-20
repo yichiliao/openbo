@@ -3,8 +3,13 @@
 Regret is `log10(max(optimum - value, 1e-12))` of the noise-free weighted sum
 `f(x) @ alpha`, per new user. `--metric instant` (default) uses the design
 evaluated at each iteration, which is what a user experiences; `--metric best`
-uses the best design so far. Curves show the mean over new users with a 95%
-confidence band. Writes (with the metric as a suffix):
+uses the best design so far. `--metric hv` instead scores the designs
+evaluated so far by their noise-free hypervolume above `v_ref`, as
+`log10(max(HV* - HV, 1e-2))` with `HV*` the user's true Pareto hypervolume
+(estimated to about 3e-3 of about 7.7, hence the floor; cached in `plots/pareto_hypervolume.json`);
+it ignores `alpha`, so it also scores TAF-EHVI and qLogNEHVI on their own
+terms. Curves show the mean over new users with a 95% confidence band.
+Writes (with the metric as a suffix):
 
 - `sim2_<metric>.png`: one panel per similarity range (Simulation 2).
 - `sim1_<metric>.png`: one panel per objective weight vector (Simulation 1).
@@ -27,6 +32,9 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 import numpy as np
 
+from openbo.benchmarks.taf_plus_runner import hypervolume_curve, pareto_hypervolume
+from openbo.test_functions.taf_plus_users import SphereUser
+
 # Categorical slots 1-4 of the reference palette, in fixed order, plus line
 # styles so identity never rests on colour alone.
 STYLES = {
@@ -34,6 +42,8 @@ STYLES = {
     "taf": ("TAF (no decay)", "#eb6834", "--"),
     "bo": ("BO (weighted sum)", "#1baf7a", "-."),
     "random": ("Random", "#eda100", ":"),
+    "taf_ehvi": ("TAF-EHVI", "#8a4fc8", "-"),
+    "mobo": ("qLogNEHVI", "#52514e", "--"),
 }
 SIM2 = ("sim2_r005", "sim2_r01", "sim2_r02", "sim2_r03")
 SIM2_LABELS = {"sim2_r005": "range 0.05", "sim2_r01": "range 0.1", "sim2_r02": "range 0.2", "sim2_r03": "range 0.3"}
@@ -42,12 +52,28 @@ SIM1_ALPHAS = ("a100-000-000", "a000-100-000", "a000-000-100", "a033-033-034", "
 INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 
 
-METRIC_KEYS = {"instant": "instant_regret", "best": "regret"}
-METRIC_LABELS = {"instant": "log10 regret of each design", "best": "log10 regret of best so far"}
+METRIC_KEYS = {"instant": "instant_regret", "best": "regret", "hv": None}
+METRIC_LABELS = {
+    "instant": "log10 regret of each design",
+    "best": "log10 regret of best so far",
+    "hv": "log10 hypervolume regret",
+}
+_PARETO_HV: dict[str, float] = {}
+HV_FLOOR = 1e-2
 
 
 def log_regret(run: dict, metric: str) -> np.ndarray:
     """Return log10 regret per new user, shape (n_users, n_evals)."""
+    if metric == "hv":
+        v_ref = tuple(run["settings"]["v_ref"])
+        rows = []
+        for u in run["users"]:
+            user = SphereUser(tuple(u["shift"]), float(u["scale"]))
+            key = json.dumps([list(user.shift), user.scale, list(v_ref)])
+            if key not in _PARETO_HV:
+                _PARETO_HV[key] = pareto_hypervolume(user, v_ref)
+            rows.append(_PARETO_HV[key] - hypervolume_curve(user, np.asarray(u["x"]), v_ref))
+        return np.log10(np.maximum(np.asarray(rows), HV_FLOOR))
     key = METRIC_KEYS[metric]
     return np.log10(np.maximum(np.asarray([u[key] for u in run["users"]]), 1e-12))
 
@@ -110,6 +136,9 @@ def main() -> None:
     root = Path(args.results_dir)
     plots = root / "plots"
     plots.mkdir(parents=True, exist_ok=True)
+    hv_cache = plots / "pareto_hypervolume.json"
+    if args.metric == "hv" and hv_cache.exists():
+        _PARETO_HV.update(json.loads(hv_cache.read_text(encoding="utf-8")))
     table = [f"{METRIC_LABELS[args.metric]}, mean over new users"]
     table.append(f"{'setting':<22} {'method':<18} " + " ".join(f"{'@' + str(e):>7}" for e in args.evals))
 
@@ -128,9 +157,9 @@ def main() -> None:
         for ax in axes[:, 0]:
             ax.set_ylabel(METRIC_LABELS[args.metric], color=MUTED, fontsize=9)
         handles, labels = next(
-            (h, l)
-            for h, l in (ax.get_legend_handles_labels() for ax in axes.flat)
-            if l
+            (handles, labels)
+            for handles, labels in (ax.get_legend_handles_labels() for ax in axes.flat)
+            if labels
         )
         fig.legend(handles, labels, loc="upper center", ncol=len(labels), frameon=False, fontsize=9)
         fig.tight_layout(rect=(0, 0, 1, 0.92))
@@ -161,6 +190,8 @@ def main() -> None:
         fig.savefig(plots / "decay.png", dpi=150)
         plt.close(fig)
 
+    if args.metric == "hv":
+        hv_cache.write_text(json.dumps(_PARETO_HV, indent=1), encoding="utf-8")
     print("\n".join(table))
 
 

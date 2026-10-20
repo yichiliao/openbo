@@ -49,7 +49,7 @@ The headline tables and plots are on the website's [Benchmarks](https://www.csie
 | [`conbo_branin_quick/`](../../benchmark_results/conbo_branin_quick/) | ConBO vs standard BO, Test 1, one seed ([README](../../benchmark_results/conbo_branin_quick/README.md)) | [ConBO benchmark](conbo.md#benchmark-and-plot) |
 | [`conbo_branin_5seeds/`](../../benchmark_results/conbo_branin_5seeds/) | ConBO vs standard BO, TAF-M, TAF-R and a single GP, Test 1, 5 seeds; about 47 minutes on 8 cores ([README](../../benchmark_results/conbo_branin_5seeds/README.md)) | [ConBO benchmark](conbo.md#benchmark-and-plot) |
 | [`mobo_2obj/`](../../benchmark_results/mobo_2obj/) | OKA2 and DTLZ1a, 5 methods × 3 seeds × 40 iterations | [MOBO benchmark](mobo.md#benchmark-and-plot) |
-| [`taf_plus_sims/`](../../benchmark_results/taf_plus_sims/) | CHI 2024 App. B Simulations 1 and 2, one seed, with cached populations and decay searches; about 3 hours on 8 cores ([README](../../benchmark_results/taf_plus_sims/README.md)) | [TAF+ benchmark](taf-plus.md#benchmark-and-plot) |
+| [`taf_plus_sims/`](../../benchmark_results/taf_plus_sims/) | CHI 2024 App. B Simulations 1 and 2, one seed, with cached populations and decay searches, plus TAF-EHVI and plain qLogNEHVI on the Simulation 2 users (2026-10-21); about 3 hours on 8 cores, plus about 1¾ hours for TAF-EHVI ([README](../../benchmark_results/taf_plus_sims/README.md)) | [TAF+ benchmark](taf-plus.md#benchmark-and-plot) |
 | [`naf_branin/`](../../benchmark_results/naf_branin/) | The trained Branin AF (`training/branin_metabo50_v1/`, 236 iterations) and 5 methods × 100 test tasks ([README](../../benchmark_results/naf_branin/README.md)) | [Train and benchmark](naf.md#train-a-neural-af) |
 | [`naf_goldstein_price/`](../../benchmark_results/naf_goldstein_price/) | The same for Goldstein-Price, 600 iterations ([README](../../benchmark_results/naf_goldstein_price/README.md)) | [Train and benchmark](naf.md#train-a-neural-af) |
 | [`naf_hartmann3/`](../../benchmark_results/naf_hartmann3/) | The same for Hartmann-3, 600 and 2000 iterations ([README](../../benchmark_results/naf_hartmann3/README.md)) | [Train and benchmark](naf.md#train-a-neural-af) |
@@ -103,3 +103,16 @@ regret on the same 100 test tasks:
   best checkpoint of this run reaches, an upper estimate of what a training
   gives, not an average. The regret curves against the baselines (the archived
   runs) are in `test_results/naf/plots/v3_2000_branin.png`.
+
+### Code changes since the archives
+
+Each archive was made with the code of the commit that adds it; check out that commit to reproduce it exactly. These later changes (2026-10-21, from PR #1) are bug fixes that change some numbers:
+
+| Change | Archives affected |
+| --- | --- |
+| `GPScratch` and `MultiOutputGP` no longer collapse to near-zero variance on one observation or all-equal values (the std is set to 1 instead of 1e-12) | `conbo_branin_5seeds/` (TAF baselines: TAF-R in seed 0 repeats one design for two users, so its target GP saw only identical values; checked by counting, 2026-10-21) |
+| Output noise has its own random stream instead of sharing `--seed` with the optimizer | `benchmark_scratch_botorch/` (noisy runs) |
+| The BoTorch optimizers seed torch per `suggest()` call instead of once globally, and the MOBO one models the objectives as one batched `SingleTaskGP` | `benchmark_scratch_botorch/`, `benchmark_taf/` (`bo_botorch` runs), `mobo_2obj/` (`mobo_botorch`), `taf_plus_sims/` (population models) |
+| Family variants report their reachable optimum when the input shift clips the base optimum out of `[0, 1]^d` (up to 3D) | family runs in `benchmark_scratch_botorch/` and `benchmark_taf/` whose variants clip |
+
+The NAF archives are unaffected.

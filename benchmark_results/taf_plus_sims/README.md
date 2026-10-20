@@ -3,6 +3,8 @@
 TAF+ Phase 4 benchmark (see `docs/plans/taf_plus.md`), run on 2026-10-11 with
 the workflow, runner and scripts from the commit that adds this folder.
 
+> **Reproducing:** later code gives slightly different numbers (the BoTorch MOBO rewrite and its per-call seeding change the population models, which are cached here, so only a rebuild is affected; see `docs/guide/results.md`, "Code changes since the archives"). Check out the commit that adds this folder to reproduce them exactly.
+
 **Setup** (`benchmarks/taf_plus_runner.py`): the App. B base function (three
 2D spheres on a 4D input, 3 maximized objectives, noise std 0.05). Each
 setting samples 20 users with shifts `U(-r/2, r/2)` and output scales
@@ -28,8 +30,8 @@ Files: `populations/v1_<sim>_s0/` (population GPs and data, plus
 `decay/v1_<sim>_a030-050-020_s0.json` (decay search scores and curves),
 `trajectories/v1_<method>_<sim>_<alpha>_s0.json` (per new user: shift, scale,
 optimum, x, y, noise-free weighted values, per-iteration and best-so-far
-regret), `plots/` (`sim2_best.png`, `sim2_instant.png`, `sim1_best.png`,
-`sim1_instant.png`, `decay.png`), `run_all.log` and `run_all.sh`. With the
+regret), `plots/` (`sim2_best.png`, `sim2_instant.png`, `sim2_hv.png`, `sim1_best.png`,
+`sim1_instant.png`, `sim1_hv.png`, `decay.png`, `pareto_hypervolume.json`), `run_all.log` and `run_all.sh`. With the
 populations cached, `run_all.sh` takes about 2 hours on 8 cores (each decay
 search 17-18 minutes with 7 workers, each TAF+/TAF run about 5.5 minutes);
 building the five populations took another 48 minutes (7 workers).
@@ -134,3 +136,101 @@ mixed `alpha` -0.04 / 0.25 / 0.20, -0.03 / -0.04 / 0.17 and -0.19 / 0.14 / 0.25
 
 One seed (10 new users) per setting, as in the paper; the 95% bands in the
 plots are over new users.
+
+## TAF-EHVI and plain qLogNEHVI (added 2026-10-21)
+
+Two multi-objective methods run on the same Simulation 2 users, with the same
+cached populations and noise streams as the methods above (code: the commit that
+adds these trajectories):
+
+- `taf_ehvi`: TAF-EHVI (`optimizers/mobo_taf.py`, contributed in PR #1), with
+  the 10 population users as sources (their per-objective GPs, converted by
+  `write_population_sources`). It optimizes hypervolume and never sees `alpha`.
+  Defaults: objective-wise TAF-R weights, no warmup, no decay.
+- `mobo`: plain qLogNEHVI with the same settings, i.e. TAF-EHVI without sources.
+
+Both need one observation before their first suggestion, so they start from one
+random point (the same point BO and random search start from), then run 19
+qLogNEHVI steps with 256 raw samples and 4 restarts, the population modelling's
+settings. On one thread a TAF-EHVI step took about 32 s and a plain qLogNEHVI
+step about 23 s (8 runs in parallel on 8 cores: about 103 and 73 minutes per
+range).
+
+Besides the weighted-sum regret, every method is also scored on **hypervolume**:
+`log10(HV* - HV)` of the noise-free objectives of the designs evaluated so far,
+above `v_ref = (-1, -1, -1)`. `HV*` is the user's true Pareto hypervolume (about
+7.7), traced by the maximizers of 861 weighted sums; it is accurate to about
+0.003, so values are floored at log10(0.01) = -2. (`plots/pareto_hypervolume.json`
+caches `HV*` per user.)
+
+Best design so far on the weighted sum, mean log10 regret (the other methods'
+rows are in the tables above):
+
+| Range | Method | 1 | 2 | 3 | 5 | 10 | 20 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 0.05 | TAF-EHVI | 0.01 | **-0.44** | **-0.61** | **-0.79** | **-1.25** | **-1.79** |
+| | qLogNEHVI | 0.01 | 0.01 | 0.01 | -0.34 | -0.99 | -1.62 |
+| 0.1 | TAF-EHVI | -0.01 | **-0.38** | **-0.38** | **-0.59** | **-1.07** | **-1.91** |
+| | qLogNEHVI | -0.01 | -0.01 | -0.01 | -0.39 | -1.04 | -1.71 |
+| 0.2 | TAF-EHVI | -0.03 | **-0.29** | **-0.29** | **-0.42** | **-1.11** | -1.76 |
+| | qLogNEHVI | -0.03 | -0.03 | -0.03 | -0.32 | -1.00 | **-1.80** |
+| 0.3 | TAF-EHVI | -0.05 | **-0.20** | **-0.20** | -0.33 | -1.11 | -1.63 |
+| | qLogNEHVI | -0.05 | -0.05 | -0.05 | **-0.43** | **-1.14** | **-1.77** |
+
+Hypervolume, mean log10 hypervolume regret, all methods:
+
+| Range | Method | 1 | 2 | 3 | 5 | 10 | 20 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 0.05 | TAF+ | **0.12** | **-0.04** | **-0.08** | **-0.10** | -0.12 | -0.13 |
+| | TAF-EHVI | 0.84 | 0.70 | 0.64 | 0.49 | -0.03 | **-0.62** |
+| | qLogNEHVI | 0.84 | 0.84 | 0.84 | 0.64 | 0.18 | -0.58 |
+| | BO | 0.84 | 0.83 | 0.80 | 0.79 | 0.61 | 0.13 |
+| | Random | 0.84 | 0.83 | 0.80 | 0.79 | 0.57 | 0.43 |
+| 0.1 | TAF+ | **0.15** | **0.01** | **-0.13** | **-0.16** | **-0.17** | -0.19 |
+| | TAF-EHVI | 0.83 | 0.70 | 0.70 | 0.54 | 0.10 | **-0.58** |
+| | qLogNEHVI | 0.83 | 0.83 | 0.83 | 0.63 | 0.18 | -0.55 |
+| | BO | 0.83 | 0.83 | 0.79 | 0.78 | 0.69 | 0.31 |
+| | Random | 0.83 | 0.83 | 0.79 | 0.78 | 0.57 | 0.41 |
+| 0.2 | TAF+ | **0.27** | **0.10** | **-0.02** | **-0.03** | **-0.08** | -0.10 |
+| | TAF-EHVI | 0.82 | 0.72 | 0.72 | 0.59 | -0.01 | **-0.58** |
+| | qLogNEHVI | 0.82 | 0.82 | 0.82 | 0.68 | 0.17 | **-0.58** |
+| | BO | 0.82 | 0.80 | 0.77 | 0.76 | 0.64 | 0.34 |
+| | Random | 0.82 | 0.80 | 0.77 | 0.76 | 0.56 | 0.38 |
+| 0.3 | TAF+ | **0.40** | **0.34** | **0.25** | **0.17** | 0.06 | -0.00 |
+| | TAF-EHVI | 0.81 | 0.76 | 0.76 | 0.66 | **0.01** | -0.56 |
+| | qLogNEHVI | 0.81 | 0.81 | 0.81 | 0.59 | 0.07 | **-0.58** |
+| | BO | 0.81 | 0.78 | 0.74 | 0.73 | 0.66 | 0.30 |
+| | Random | 0.81 | 0.78 | 0.74 | 0.73 | 0.55 | 0.38 |
+
+TAF (no decay) is within 0.07 of TAF+ everywhere (see `plots/sim2_hv.png`).
+
+Findings:
+
+1. **Transfer helps TAF-EHVI early, then fades.** From the same random first
+   point, its second and third designs are better than plain qLogNEHVI's on
+   both metrics in every range (qLogNEHVI makes no progress on those steps). For
+   ranges 0.05 to 0.2 it stays ahead to about evaluation 10; at range 0.3, the
+   least similar users, qLogNEHVI is ahead from evaluation 5. By evaluation 20
+   the two are level: the differences there (at most 0.2 on the weighted sum,
+   0.04 on hypervolume) are within the 95% bands of `plots/sim2_best.png` and
+   `sim2_hv.png`.
+2. **TAF+'s first design is still unmatched early.** Starting from the
+   population's product-of-experts optimum, TAF+ covers most of the front's
+   hypervolume at once, which TAF-EHVI, starting from one random point, needs
+   about 10 evaluations to reach.
+3. **The multi-objective methods win late.** By evaluation 20 TAF-EHVI and
+   qLogNEHVI have 2.5 to 3.6 times less hypervolume regret than TAF+ (which
+   stalls after its first design; finding 2 above) and 5 to 8 times less than
+   BO, and on the weighted
+   sum they beat TAF+ for the less similar users (ranges 0.2 and 0.3) without
+   ever seeing `alpha`. Unlike TAF+ and BO, they also keep proposing good
+   designs late (`plots/sim2_instant.png`).
+4. **Caveats.** One seed (10 new users), as above. TAF-EHVI ran with its
+   defaults only (no warmup, no decay, TAF-R weights); a warmup or a start from
+   the sources alone (which it does not support yet) might narrow the early gap
+   to TAF+. Its source GPs are the TAF+ population's own (RBF, fitted by
+   `GPScratch`), replayed in BoTorch; the means match TAF+'s exactly (tested).
+
+To reproduce: the `taf_ehvi` and `mobo` lines in `run_all.sh`, then
+`scripts/plot_taf_plus_results.py --results-dir benchmark_results/taf_plus_sims
+--test-id v1 --metric hv` (and `--metric best`, `--metric instant`).

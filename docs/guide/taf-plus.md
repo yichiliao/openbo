@@ -114,7 +114,11 @@ uv run python scripts/run_taf_plus_benchmark.py --method taf --sim sim2_r01 --te
 uv run python scripts/run_taf_plus_benchmark.py --method bo --sim sim2_r01 --test-id demo
 uv run python scripts/run_taf_plus_benchmark.py --method random --sim sim2_r01 --test-id demo
 
-# Regret curves (each design, or --metric best), decay heatmaps and a table
+# Multi-objective methods on the same users: TAF-EHVI (the population as sources) and plain qLogNEHVI
+OMP_NUM_THREADS=1 uv run python scripts/run_taf_plus_benchmark.py --method taf_ehvi --sim sim2_r01 --test-id demo
+OMP_NUM_THREADS=1 uv run python scripts/run_taf_plus_benchmark.py --method mobo --sim sim2_r01 --test-id demo
+
+# Regret curves (each design, --metric best, or --metric hv for hypervolume), decay heatmaps and a table
 uv run python scripts/plot_taf_plus_results.py --test-id demo
 ```
 
@@ -124,10 +128,14 @@ uv run python scripts/plot_taf_plus_results.py --test-id demo
 | `taf` | the same without decay (the paper's multi-objective TAF) |
 | `bo` | scratch EI on the noisy weighted sum, 5 random starts |
 | `random` | uniform random designs |
+| `taf_ehvi` | TAF-EHVI ([Multi-objective BO](mobo.md#taf-ehvi-and-the-botorch-compatibility-api)) with the population's users as sources; optimizes hypervolume and never sees `alpha`; 1 random start, then 19 steps |
+| `mobo` | plain qLogNEHVI with the same start and settings (TAF-EHVI without sources) |
+
+`--metric hv` scores every method on the noise-free hypervolume of the designs evaluated so far, against the user's true Pareto front (traced by maximizing 861 weighted sums; the first plot computes it, about 25 s per user, and caches it in `plots/pareto_hypervolume.json`). TAF-EHVI and qLogNEHVI take about 100 and 75 minutes per setting on one thread; run one process per setting with `OMP_NUM_THREADS=1`.
 
 Building a population is the slowest step; it is cached on disk and reused. Results go to `test_results/taf_plus/` ([Results folders](results.md#results-folder-convention)). The archived
 run and its findings are in [Archived results](results.md#archived-benchmark-results): transfer gives an excellent first
-design, but TAF+ rarely improves after it.
+design, but TAF+ rarely improves after it. TAF-EHVI beats plain qLogNEHVI early (to about evaluation 10 for ranges up to 0.2), and both end with 2.5 to 3.6 times less hypervolume regret than TAF+ by evaluation 20.
 
 ## Run through the server
 

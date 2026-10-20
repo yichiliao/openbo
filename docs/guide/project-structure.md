@@ -15,8 +15,8 @@
 - `src/openbo/` - main package (`import openbo`; distribution name is `open-bo`).
   - `test_functions/` - synthetic objectives, transforms, family/task variants and registry utilities; multi-objective problems (`multi_objective.py`), ConBO's simulated users (`families.py`), TAF+'s sphere users (`taf_plus_users.py`) and MetaBO's Branin, Goldstein-Price and Hartmann-3 families for NAF (`metabo_families.py`).
   - `models/` - GP implementations and kernels (the NumPy GP in `gp_scratch.py`), including the multi-output GP in `multi_output_gp.py`, a slice sampler in `slice_sampling.py`, and ConBO's MC-dropout population BNN (`bnn.py`) and generative replay (`conbo_replay.py`).
-  - `acquisition/` - EI, TAF, EIPV/CEIPV for MOBO (`mobo.py`), ConBO's mixed population/user EI (`conbo.py`), TAF+ with objective weights and decay (`taf_plus.py`; see [`docs/plans/taf_plus.md`](../plans/taf_plus.md)), and the neural AF with its features and candidate set (`naf.py`).
-  - `optimizers/` - random search (`random_search.py`), standard BO, TAF; MOBO in `mobo.py` and the qLogNEHVI baseline in `mobo_botorch.py`; continual BO across a sequence of users in `conbo.py`; TAF+ (transfer from earlier users with objective weights and decay) in `bo_taf_plus.py`, with its workflow steps (objective weights from ratings, decay search) in `taf_plus_workflow.py`; NAF / MetaBO (fixed family GPs, RL episodes, PPO training, ask/tell optimizer) in `naf.py`.
+  - `acquisition/` - EI, TAF, EIPV/CEIPV for MOBO (`mobo.py`), ConBO's mixed population/user EI (`conbo.py`), the multi-objective TAF-EHVI terms and weights (`taf_mo_ehvi.py`), TAF+ with objective weights and decay (`taf_plus.py`; see [`docs/plans/taf_plus.md`](../plans/taf_plus.md)), and the neural AF with its features and candidate set (`naf.py`).
+  - `optimizers/` - random search (`random_search.py`), standard BO, TAF; MOBO in `mobo.py` and the qLogNEHVI baseline in `mobo_botorch.py`; multi-objective TAF (TAF-EHVI) in `mobo_taf.py`; continual BO across a sequence of users in `conbo.py`; TAF+ (transfer from earlier users with objective weights and decay) in `bo_taf_plus.py`, with its workflow steps (objective weights from ratings, decay search) in `taf_plus_workflow.py`; NAF / MetaBO (fixed family GPs, RL episodes, PPO training, ask/tell optimizer) in `naf.py`.
   - `server_optimizers/` - WebSocket session adapters for generic BO, TAF, MOBO, ConBO, TAF+ and NAF.
   - `benchmarks/` - `run_simple_benchmark` method dispatcher, Pareto/hypervolume utilities (`hypervolume.py`), the MOBO method dispatcher (`mobo_runner.py`), the ConBO user-sequence dispatcher (`conbo_runner.py`), the TAF+ simulation runner (`taf_plus_runner.py`), the MetaBO benchmark runner (`naf_runner.py`), and placeholder metrics/plotting/seeds modules.
 - `scripts/` - local benchmark/training/plot entrypoints.
@@ -39,6 +39,7 @@
   - `plot_naf_results.py` - median log10 regret curves with 30–70% bands, and a NAF training curve.
   - `plot_taf_plus_results.py` - TAF+ regret curves (each design or best so far), decay-search heatmaps and a summary table.
   - `run_botorch_fake_client.py` - toy client loop for BoTorch-oriented external-objective testing.
+  - `check_docs.py` - checks local Markdown links and anchors, and that the teaching notebooks parse (`--execute-notebooks` runs them).
   - `aggregate_results.py` - placeholder aggregation script.
 - `server_scripts/` - server and WebSocket client helpers for ask/tell workflows.
   - `run_bo_server.py` - generic BO server (`bo_botorch` or `bo_scratch`) via config/start message.

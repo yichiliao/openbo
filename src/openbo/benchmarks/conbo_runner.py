@@ -22,6 +22,7 @@ import io
 import json
 import time
 from dataclasses import dataclass, replace
+from typing import Any
 from pathlib import Path
 
 import numpy as np
@@ -168,7 +169,7 @@ def _run_single_gp_user(
             gp.optimize_hyperparameters = False
             best = float(np.max(y_obs)) if y_obs.size else float(np.max(y_prev))
 
-            def acquisition(z: NDArray[np.float64]) -> NDArray[np.float64]:
+            def acquisition(z: NDArray[np.float64], best: float = best) -> NDArray[np.float64]:
                 return expected_improvement_maximization(*gp.posterior(z), best)
 
             x = argmax_on_grid(acquisition, candidates, refine=True)
@@ -182,7 +183,7 @@ def run_conbo_method(
     test_name: str,
     seed: int,
     work_dir: str | Path,
-    config_overrides: dict[str, object] | None = None,
+    config_overrides: dict[str, Any] | None = None,
 ) -> dict[str, object]:
     """Run one method on one test for one seed; return a JSON-friendly result.
 

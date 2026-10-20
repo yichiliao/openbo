@@ -134,21 +134,50 @@ def test_compute_taf_m_weights_shape() -> None:
     assert weights[0] >= weights[1]
 
 
-def test_compute_taf_r_weights_shape_and_range() -> None:
-    """TAF-R weights should be one scalar per source in [0, 0.75]."""
+def test_compute_taf_r_weights_normalized() -> None:
+    """TAF-R weights are non-negative, normalized to sum 1, and zero for an
+    uninformative (constant) source."""
     x_train = np.array([[0.0, 0.0], [0.5, 0.5], [1.0, 1.0]], dtype=np.float64)
     y_train = np.array([-1.0, 0.2, 0.1], dtype=np.float64)
-    gp = GPScratch(optimize_hyperparameters=False)
-    gp.fit(x_train, y_train)
-    source = SourceTaskSurrogate(
-        name="src0",
-        gp=gp,
-        best_y=float(np.max(y_train)),
+
+    gp_agree = GPScratch(optimize_hyperparameters=False)
+    gp_agree.fit(x_train, y_train)  # reproduces the target ranking
+    gp_const = GPScratch(optimize_hyperparameters=False)
+    gp_const.fit(x_train, np.zeros_like(y_train))  # flat -> no ranking information
+
+    src_agree = SourceTaskSurrogate(
+        name="agree", gp=gp_agree, best_y=float(np.max(y_train)),
         meta_features=np.array([0.0, 0.0], dtype=np.float64),
     )
-    weights = compute_taf_r_weights([source], x_train, y_train, rho=1.0)
-    assert weights.shape == (1,)
-    assert 0.0 <= float(weights[0]) <= 0.75
+    src_const = SourceTaskSurrogate(
+        name="const", gp=gp_const, best_y=0.0,
+        meta_features=np.array([0.0, 0.0], dtype=np.float64),
+    )
+
+    weights = compute_taf_r_weights([src_agree, src_const], x_train, y_train, rho=1.0)
+    assert weights.shape == (2,)
+    assert np.all(weights >= 0.0)
+    assert np.isclose(weights.sum(), 1.0)
+    # The agreeing source takes the weight; the constant source has no comparable
+    # pairs and must get zero (not the maximum a distance of 0.0 would imply).
+    assert weights[0] > weights[1]
+    assert np.isclose(weights[1], 0.0)
+
+
+def test_compute_taf_r_weights_few_observations_uniform() -> None:
+    """With <2 observations TAF-R returns a normalized uniform distribution."""
+    x_train = np.array([[0.2, 0.3]], dtype=np.float64)
+    y_train = np.array([0.5], dtype=np.float64)
+    gp = GPScratch(optimize_hyperparameters=False)
+    gp.fit(np.array([[0.0, 0.0], [1.0, 1.0]]), np.array([0.0, 1.0]))
+    sources = [
+        SourceTaskSurrogate(name=f"s{i}", gp=gp, best_y=1.0,
+                            meta_features=np.array([0.0, 0.0], dtype=np.float64))
+        for i in range(3)
+    ]
+    weights = compute_taf_r_weights(sources, x_train, y_train, rho=1.0)
+    assert weights.shape == (3,)
+    assert np.allclose(weights, 1.0 / 3.0)
 
 
 def test_taf_m_acquisition_single_and_batch() -> None:
@@ -361,3 +390,127 @@ def test_run_simple_benchmark_supports_bo_taf(tmp_path) -> None:
     trace = result.metadata.get("taf_acquisition_trace", [])
     assert isinstance(trace, list)
     assert len(trace) > 0
+
+
+def test_ei_matches_closed_form() -> None:
+    """EI values match the analytic expected-improvement formula."""
+    from scipy.stats import norm
+
+    mean = np.array([1.0, 0.0, 2.0], dtype=np.float64)
+    var = np.array([4.0, 1.0, 0.25], dtype=np.float64)
+    best_y = 0.5
+    std = np.sqrt(var)
+    z = (mean - best_y) / std
+    expected = (mean - best_y) * norm.cdf(z) + std * norm.pdf(z)
+    ei = expected_improvement_maximization(mean, var, best_y)
+    assert np.allclose(ei, expected, atol=1e-10)
+
+
+def test_taf_m_acquisition_source_only_value() -> None:
+    """With target_weight=0 and relu improvement, the acquisition equals the
+    (weight-independent) source improvement relu(mean_source(x) - reference)."""
+    x_train = np.array([[0.0], [1.0]], dtype=np.float64)
+    y_train = np.array([0.0, 2.0], dtype=np.float64)
+    src_gp = GPScratch(optimize_hyperparameters=False)
+    src_gp.fit(x_train, y_train)
+    reference = 0.5
+    src = SourceTaskSurrogate(
+        name="s", gp=src_gp, best_y=2.0,
+        meta_features=np.array([0.0], dtype=np.float64), reference_y=reference,
+    )
+    xq = np.array([[0.8]], dtype=np.float64)
+    mean_at, _ = src_gp.posterior(xq)
+    expected = max(float(mean_at[0]) - reference, 0.0)
+    val = taf_m_acquisition(
+        x=xq, target_gp=None, target_best_y=float("-inf"),
+        source_surrogates=[src], source_weights=np.array([0.7], dtype=np.float64),
+        target_weight=0.0, source_improvement_mode="relu",
+    )
+    assert np.isclose(float(val[0]), expected)
+
+
+def test_taf_m_softplus_does_not_overflow() -> None:
+    """The softplus source improvement stays finite for large source improvements."""
+    x_train = np.array([[0.0], [1.0]], dtype=np.float64)
+    y_train = np.array([0.0, 100.0], dtype=np.float64)  # large y range -> large delta
+    src_gp = GPScratch(optimize_hyperparameters=False)
+    src_gp.fit(x_train, y_train)
+    src = SourceTaskSurrogate(
+        name="s", gp=src_gp, best_y=100.0,
+        meta_features=np.array([0.0], dtype=np.float64), reference_y=0.0,
+    )
+    val = taf_m_acquisition(
+        x=np.array([[1.0]], dtype=np.float64), target_gp=None,
+        target_best_y=float("-inf"), source_surrogates=[src],
+        source_weights=np.array([1.0], dtype=np.float64), target_weight=0.0,
+        source_improvement_mode="softplus", source_improvement_temperature=0.05,
+    )
+    assert np.all(np.isfinite(val))
+    assert float(val[0]) > 50.0  # ~ the source improvement (~100), not 0 or inf
+
+
+def test_taf_partial_source_meta_features_raises(tmp_path) -> None:
+    """Supplying meta-features for only SOME sources must fail fast rather than
+    mixing vector lengths and dying later in np.stack with an opaque error."""
+    import pytest
+
+    run_dir = tmp_path / "taf_run"
+    (run_dir / "gp_states").mkdir(parents=True)
+    (run_dir / "trajectories").mkdir(parents=True)
+    x = np.array([[0.1, 0.1], [0.6, 0.4], [0.9, 0.8]], dtype=np.float64)
+    y = np.array([-1.0, 0.3, 0.2], dtype=np.float64)
+    gp = GPScratch(optimize_hyperparameters=False)
+    gp.fit(x, y)
+    ls = np.asarray(gp.lengthscale, dtype=np.float64).reshape(-1).tolist()
+    for name in ("train_task_000", "task_999"):  # second has no meta entry
+        (run_dir / "trajectories" / f"{name}.json").write_text(
+            json.dumps({"x_values": x.tolist(), "y_values": y.tolist()}), encoding="utf-8"
+        )
+        (run_dir / "gp_states" / f"{name}.json").write_text(
+            json.dumps({"gp_state": {"kernel_type": "matern52", "lengthscale": ls,
+                                     "variance": 1.0, "noise": 1e-6}}), encoding="utf-8"
+        )
+    spec = get_function_spec("branin")
+    with pytest.raises(ValueError, match="must cover every source surrogate"):
+        TAFSequentialOptimizer(TAFConfig(
+            bounds=spec.bounds, taf_run_dir=run_dir, n_init=0, n_iter=2,
+            source_meta_features={"train_task_000": np.array([0.1, 0.2, 0.3])},
+            seed=0,
+        ))
+
+
+def test_botorch_suggest_leaves_global_torch_rng_untouched() -> None:
+    """suggest() must not mutate process-global torch RNG state (CPU or, since
+    torch.manual_seed also reseeds them, accelerator generators)."""
+    import torch
+
+    spec = get_function_spec("branin")
+    torch.manual_seed(4321)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(4321)
+        cuda_before = torch.cuda.get_rng_state().clone()
+    cpu_before = torch.get_rng_state().clone()
+
+    opt = BoTorchSequentialOptimizer(BoTorchConfig(bounds=spec.bounds, n_init=3, seed=5))
+    opt.bootstrap(spec.objective)
+    opt.suggest()
+
+    assert torch.equal(cpu_before, torch.get_rng_state())
+    if torch.cuda.is_available():
+        assert torch.equal(cuda_before, torch.cuda.get_rng_state())
+
+
+def test_compute_taf_r_weights_all_disagree_returns_zero() -> None:
+    """When every source contradicts the observed ranking, weights are all zero
+    (so taf_m_acquisition falls back to target-only EI), not uniform."""
+    x_obs = np.array([[0.2, 0.2], [0.8, 0.8]], dtype=np.float64)
+    y_obs = np.array([0.0, 1.0], dtype=np.float64)
+    gp_reversed = GPScratch(optimize_hyperparameters=False)
+    gp_reversed.fit(x_obs, np.array([1.0, 0.0], dtype=np.float64))  # reversed ranking
+    src = SourceTaskSurrogate(
+        name="rev", gp=gp_reversed, best_y=1.0,
+        meta_features=np.array([0.0, 0.0], dtype=np.float64),
+    )
+    weights = compute_taf_r_weights([src], x_obs, y_obs, rho=1.0)
+    assert weights.shape == (1,)
+    assert np.allclose(weights, 0.0)

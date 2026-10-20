@@ -398,7 +398,6 @@ def main() -> None:
             best_log_regret_trajectories: list[np.ndarray] = []
             for idx, spec in enumerate(family):
                 if spec.optimum is None:
-                    print(f"Task '{idx}'.")
                     raise ValueError(
                         f"Task '{spec.name}' has unknown optimum; cannot compute log-regret."
                     )

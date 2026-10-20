@@ -51,10 +51,11 @@ def _gp_state_from_single_task_gp(
 
     noise = float(np.asarray(model.likelihood.noise.detach().cpu(), dtype=np.float64).reshape(-1)[0])
 
+    # GPyTorch modules expose dynamically registered buffers.
     ot = model.outcome_transform
     if ot is not None and hasattr(ot, "means") and hasattr(ot, "stdvs"):
-        y_mean = float(np.asarray(ot.means.detach().cpu(), dtype=np.float64).reshape(-1)[0])
-        y_std = float(np.asarray(ot.stdvs.detach().cpu(), dtype=np.float64).reshape(-1)[0])
+        y_mean = float(np.asarray(ot.means.detach().cpu(), dtype=np.float64).reshape(-1)[0])  # type: ignore[operator]
+        y_std = float(np.asarray(ot.stdvs.detach().cpu(), dtype=np.float64).reshape(-1)[0])  # type: ignore[operator]
         standardize_targets = True
     else:
         y_mean = 0.0
@@ -68,6 +69,7 @@ def _gp_state_from_single_task_gp(
         "lengthscale": [float(v) for v in lengthscale],
         "variance": variance,
         "noise": noise,
+        "mean_constant": float(model.mean_module.constant.detach().cpu().item()),
         "standardize_targets": standardize_targets,
         "optimize_hyperparameters": True,
         "optimize_noise": bool(getattr(model.likelihood.noise, "requires_grad", False)),
@@ -105,7 +107,12 @@ class BoTorchSequentialOptimizer:
     def __init__(self, config: BoTorchConfig) -> None:
         self.config = config
         self.rng = np.random.default_rng(config.seed)
-        torch.manual_seed(0 if config.seed is None else config.seed)
+        # torch seeding is scoped inside suggest() via fork_rng so it never mutates
+        # the process-global CPU torch RNG (which would let concurrent server
+        # sessions perturb each other). Everything here is CPU double precision.
+        # A None seed stays nondeterministic rather than being silently pinned to 0.
+        self._torch_seed = config.seed
+        self._suggest_calls = 0
 
         self.d = len(config.bounds)
         self.lower = np.array([b[0] for b in config.bounds], dtype=np.float64)
@@ -147,21 +154,34 @@ class BoTorchSequentialOptimizer:
         if self.x_obs.shape[0] == 0:
             raise ValueError("Cannot suggest without observations. Call bootstrap() first.")
 
-        model = self._fit_single_task_gp()
-        train_y = torch.tensor(self.y_obs, dtype=torch.double).unsqueeze(-1)
-        best_f = torch.max(train_y).item()
-        acq = LogExpectedImprovement(model=model, best_f=best_f)
         bounds_t = torch.tensor(
             np.array([[0.0] * self.d, [1.0] * self.d], dtype=np.float64),
             dtype=torch.double,
         )
-        candidate, _ = optimize_acqf(
-            acq_function=acq,
-            bounds=bounds_t,
-            q=1,
-            num_restarts=self.config.num_restarts,
-            raw_samples=self.config.raw_samples,
-        )
+        # Isolate torch RNG use to this call: fork_rng saves/restores the CPU
+        # generator, and a per-call seed (base + call index) keeps runs reproducible
+        # and each iteration distinct without leaking into other sessions.
+        # Seed default_generator directly rather than torch.manual_seed: the latter
+        # also reseeds every accelerator (CUDA/MPS/XPU) generator, which
+        # fork_rng(devices=[]) does not restore, so it would clobber the global
+        # accelerator RNG of any co-hosted torch code. The CPU stream is identical.
+        with torch.random.fork_rng(devices=[]):
+            if self._torch_seed is not None:
+                torch.default_generator.manual_seed(
+                    int(self._torch_seed) + self._suggest_calls
+                )
+            self._suggest_calls += 1
+
+            model = self._fit_single_task_gp()
+            best_f = float(np.max(self.y_obs))
+            acq = LogExpectedImprovement(model=model, best_f=best_f)
+            candidate, _ = optimize_acqf(
+                acq_function=acq,
+                bounds=bounds_t,
+                q=1,
+                num_restarts=self.config.num_restarts,
+                raw_samples=self.config.raw_samples,
+            )
         x_next_unit = candidate.detach().cpu().numpy().astype(np.float64)
         return x_next_unit * self.scale + self.lower
 
@@ -177,6 +197,8 @@ class BoTorchSequentialOptimizer:
             raise ValueError(f"x_new must have shape (n, {self.d}), got {x_new.shape}.")
         if y_new.ndim != 1 or y_new.shape[0] != x_new.shape[0]:
             raise ValueError("y_new must have shape (n,) and match x_new rows.")
+        if x_new.shape[0] == 0 or not np.all(np.isfinite(x_new)) or not np.all(np.isfinite(y_new)):
+            raise ValueError("observations must be non-empty and finite.")
 
         self.x_obs = np.vstack([self.x_obs, x_new])
         self.y_obs = np.concatenate([self.y_obs, y_new])
@@ -208,6 +230,11 @@ def run_bo_botorch(
     seed: int | None = 0,
 ) -> BORunResult:
     """Run simple BoTorch BO for a maximization objective."""
+    if n_init <= 0:
+        raise ValueError(
+            "n_init must be >= 1 for bo_botorch: at least one random observation is "
+            "needed before the first suggest()."
+        )
     optimizer = BoTorchSequentialOptimizer(
         BoTorchConfig(bounds=bounds, n_init=n_init, seed=seed)
     )

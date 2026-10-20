@@ -195,12 +195,17 @@ def run_taf_plus_method(
                 refine_suggestion=True,
                 seed=user_seed,
             )
-            result = run_bo_taf_plus(lambda x: user.observe(x, rng), config, population, settings.n_evals)
+            def user_objective(
+                x: np.ndarray, user: SphereUser = user, rng: np.random.Generator = rng
+            ) -> np.ndarray:
+                return user.observe(x, rng)
+
+            result = run_bo_taf_plus(user_objective, config, population, settings.n_evals)
             x_obs, y_obs = result.x_obs, result.y_obs
         elif method == "bo":
             observed: list[np.ndarray] = []
 
-            def weighted(x: np.ndarray) -> np.ndarray:
+            def weighted(x: np.ndarray, user=user, rng=rng, observed=observed) -> np.ndarray:
                 y = user.observe(x, rng)
                 observed.append(y)
                 return y @ alpha

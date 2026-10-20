@@ -216,3 +216,81 @@ def test_registry_noisy_spec_is_reproducible_with_seed() -> None:
     y_a = spec_a.objective(x)
     y_b = spec_b.objective(x)
     assert np.allclose(y_a, y_b)
+
+
+def test_variant_reachable_optimum_below_analytic() -> None:
+    """When the affine transform clips the base optimum out of reach, the reported
+    optimum is the (lower) reachable maximum, not output_scale*base_optimum."""
+    from openbo.test_functions.synthetic import ROSENBROCK_MAXIMUM
+
+    variant = TaskVariantSpec(
+        input_shift=(-0.3, -0.3), input_scale=(0.9, 0.9), output_scale=1.0
+    )
+    spec = make_variant_function_spec("rosenbrock", variant)
+    analytic_upper = 1.0 * ROSENBROCK_MAXIMUM  # == 0.0
+    assert spec.optimum is not None
+    assert spec.optimum <= analytic_upper + 1e-9
+    assert -0.45 < spec.optimum < -0.30  # true reachable max ~ -0.36
+
+
+def test_noise_rng_decoupled_from_search_seed() -> None:
+    """Objective-noise RNG must not share a bit stream with default_rng(seed)."""
+    from openbo.test_functions.tasks import noise_rng
+
+    noise = noise_rng(0).normal(size=8)
+    search = np.random.default_rng(0).normal(size=8)
+    assert not np.allclose(noise, search)
+    assert np.allclose(noise_rng(3).normal(size=8), noise_rng(3).normal(size=8))
+
+
+def test_reachable_variant_optimum_is_exact_analytic() -> None:
+    """When the base optimum stays reachable, the reported optimum is exactly
+    output_scale*base_optimum. The numerical search lands ~1e-7 below it, and an
+    under-estimate would let best_y exceed the optimum and make regret negative,
+    so those cases must snap back to the analytic value."""
+    for base in ("branin", "sphere", "ackley", "rastrigin", "rosenbrock"):
+        b = get_function_spec(base)
+        variants = generate_variants(base_name=base, n_tasks=4, seed=1)
+        specs = build_specs(base, variants, prefix="t")
+        for spec, variant in zip(specs, variants):
+            assert spec.optimum == variant.output_scale * b.optimum, base
+
+
+def test_variant_cap_uses_reachable_optimum_not_analytic() -> None:
+    """A shifted + capped noisy variant caps at the reported REACHABLE optimum,
+    not the analytic output_scale*base_optimum. Discriminates pre/post fix by
+    evaluating AT the reachable-max location so the cap must engage."""
+    from openbo.test_functions.synthetic import SPHERE_MAXIMUM
+    from openbo.test_functions.tasks import make_variant_objective
+
+    # Sphere shifted so its optimum (native origin) is unreachable after clipping;
+    # the reachable max sits at x=(0,0) (native (1,1) -> value -2), well below the
+    # analytic bound 0.0, and (unlike the steep Rosenbrock box) is easy to hit.
+    variant = TaskVariantSpec(
+        input_shift=(0.6, 0.6),
+        input_scale=(1.0, 1.0),
+        output_scale=1.0,
+        noise_std=0.5,
+        cap_at_optimum=True,
+        seed=0,
+    )
+    spec = make_variant_function_spec("sphere", variant, "sphere_shift_cap")
+    analytic = 1.0 * SPHERE_MAXIMUM  # 0.0
+    assert spec.optimum is not None
+    assert spec.optimum < analytic - 0.5  # reachable is strictly below analytic
+
+    # Evaluate repeatedly at the reachable-max location so noise-free value ==
+    # spec.optimum and the cap is exercised on every sample.
+    x_star = np.zeros((50, 2), dtype=np.float64)
+    y_fix = spec.objective(x_star)
+    assert np.all(y_fix <= spec.optimum + 1e-9)  # fix: never exceeds reported optimum
+
+    # The pre-fix analytic cap (0.0) would leave positive-noise draws above the
+    # reachable optimum -> the exact negative-regret regression. Rebuild that
+    # objective and assert it differs (so this test fails if the cap regresses).
+    base = get_function_spec("sphere")
+    y_analytic = make_variant_objective(
+        base.objective, variant, dim=base.dim,
+        base_optimum=base.optimum, cap_value=analytic,
+    )(x_star)
+    assert np.any(y_analytic > spec.optimum + 1e-9)

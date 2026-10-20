@@ -232,6 +232,11 @@ def run_bo_scratch(
     - "multistart": Sobol pool + L-BFGS-B refinement from top starts
     - "grid": dense Sobol candidate scan
     """
+    if n_init <= 0:
+        raise ValueError(
+            "n_init must be >= 1 for bo_scratch: at least one random observation is "
+            "needed before the first suggest()."
+        )
     optimizer = ScratchSequentialOptimizer(
         ScratchConfig(
             bounds=bounds,

@@ -128,9 +128,9 @@ def main() -> None:
         for ax in axes[:, 0]:
             ax.set_ylabel(METRIC_LABELS[args.metric], color=MUTED, fontsize=9)
         handles, labels = next(
-            (h, l)
-            for h, l in (ax.get_legend_handles_labels() for ax in axes.flat)
-            if l
+            (handles, labels)
+            for handles, labels in (ax.get_legend_handles_labels() for ax in axes.flat)
+            if labels
         )
         fig.legend(handles, labels, loc="upper center", ncol=len(labels), frameon=False, fontsize=9)
         fig.tight_layout(rect=(0, 0, 1, 0.92))

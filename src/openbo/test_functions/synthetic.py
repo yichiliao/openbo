@@ -134,7 +134,6 @@ def ackley(
     """Evaluate maximization Ackley objective on `[0, 1]^2`."""
     arr = _as_2d(x, dim=2)
     arr_native = _from_unit_cube(arr, bounds=[(-5.0, 5.0), (-5.0, 5.0)])
-    d = arr_native.shape[1]
     sq_term = np.mean(arr_native**2, axis=1)
     cos_term = np.mean(np.cos(2.0 * math.pi * arr_native), axis=1)
     y_min = (

@@ -126,14 +126,36 @@ def _load_source_surrogates(taf_run_dir: str | Path) -> list[SourceTaskSurrogate
                 stacklevel=2,
             )
             continue
-        gp_payload = json.loads(gp_path.read_text(encoding="utf-8"))
-        traj_payload = json.loads(traj_path.read_text(encoding="utf-8"))
-        gp_state = gp_payload.get("gp_state")
-        if not isinstance(gp_state, dict):
-            continue
+        try:
+            gp_payload = json.loads(gp_path.read_text(encoding="utf-8"))
+            traj_payload = json.loads(traj_path.read_text(encoding="utf-8"))
+            if not isinstance(gp_payload, dict) or not isinstance(traj_payload, dict):
+                raise ValueError("artifact must be a JSON object")
+            gp_state = gp_payload.get("gp_state")
+            if not isinstance(gp_state, dict):
+                raise ValueError("gp_state missing or not an object")
 
-        x_values = np.asarray(traj_payload["x_values"], dtype=np.float64)
-        y_values = np.asarray(traj_payload["y_values"], dtype=np.float64)
+            x_values = np.asarray(traj_payload["x_values"], dtype=np.float64)
+            y_values = np.asarray(traj_payload["y_values"], dtype=np.float64)
+            gp = GPScratch(
+                lengthscale=np.asarray(gp_state["lengthscale"], dtype=np.float64),
+                variance=float(gp_state["variance"]),
+                noise=float(gp_state["noise"]),
+                kernel_type=str(gp_state["kernel_type"]),
+                optimize_hyperparameters=False,
+                standardize_targets=bool(gp_state.get("standardize_targets", True)),
+                optimize_noise=bool(gp_state.get("optimize_noise", False)),
+                mean_constant=float(gp_state.get("mean_constant", 0.0)),
+                fixed_target_mean=gp_state.get("y_mean"),
+                fixed_target_std=gp_state.get("y_std"),
+            )
+            gp.fit(x_values, y_values)
+        except (KeyError, ValueError, TypeError, np.linalg.LinAlgError) as exc:
+            warnings.warn(
+                f"TAF source '{task_name}': malformed artifacts ({exc!r}); skipping this source.",
+                stacklevel=2,
+            )
+            continue
         key = (x_values.tobytes(), y_values.tobytes())
         if key in first_seen:
             warnings.warn(
@@ -143,16 +165,6 @@ def _load_source_surrogates(taf_run_dir: str | Path) -> list[SourceTaskSurrogate
             )
         else:
             first_seen[key] = relative.as_posix()
-        gp = GPScratch(
-            lengthscale=np.asarray(gp_state["lengthscale"], dtype=np.float64),
-            variance=float(gp_state["variance"]),
-            noise=float(gp_state["noise"]),
-            kernel_type=str(gp_state["kernel_type"]),
-            optimize_hyperparameters=False,
-            standardize_targets=bool(gp_state.get("standardize_targets", True)),
-            optimize_noise=bool(gp_state.get("optimize_noise", False)),
-        )
-        gp.fit(x_values, y_values)
         surrogates.append(
             SourceTaskSurrogate(
                 name=task_name,
@@ -291,6 +303,16 @@ class TAFSequentialOptimizer:
 
         self.source_surrogates = _load_source_surrogates(config.taf_run_dir)
         source_meta_map = _normalize_meta_map(config.source_meta_features)
+        if source_meta_map:
+            # Overriding only some sources leaves meta vectors of mixed length, which
+            # fails later with an opaque ragged np.stack error. Fail fast instead.
+            missing = [s.name for s in self.source_surrogates if s.name not in source_meta_map]
+            if missing:
+                raise ValueError(
+                    "source_meta_features must cover every source surrogate; no entry "
+                    f"for {missing}. Provide meta-features for all sources or pass "
+                    "source_meta_features=None to use the built-in defaults."
+                )
         for source in self.source_surrogates:
             if source.name in source_meta_map:
                 source.meta_features = source_meta_map[source.name]
@@ -333,20 +355,22 @@ class TAFSequentialOptimizer:
             raise ValueError("No iterations remaining.")
 
         iter_idx = self.iter_count
-        source_only_phase = iter_idx < int(max(self.config.source_only_warmup_iters, 0))
+        # Source-only warmup lasts until the target has `source_only_warmup_iters`
+        # observed points, however they arrived (one by one, or as a random batch
+        # from bootstrap()). Without any target data the target GP cannot be fit, so
+        # the sources are used alone then too.
+        n_target_points = int(self.y_obs.shape[0])
+        source_only_phase = (
+            n_target_points < int(max(self.config.source_only_warmup_iters, 0))
+            or n_target_points == 0
+        )
         if source_only_phase:
             logger.debug("source_only_phase")
             target_gp_eval: GPScratch | None = None
             target_weight_eval = 0.0
-            target_best_y = float("-inf") if iter_idx == 0 else (
-                float(np.max(self.y_obs)) if self.y_obs.size > 0 else float("-inf")
-            )
+            target_best_y = float(np.max(self.y_obs)) if self.y_obs.size > 0 else float("-inf")
         else:
             logger.debug("target_phase")
-            if self.y_obs.size == 0:
-                raise ValueError(
-                    "No target observations available when leaving source-only warmup."
-                )
             self.target_gp.fit(self.x_obs, self.y_obs)
             target_gp_eval = self.target_gp
             target_weight_eval = float(self.config.target_weight)

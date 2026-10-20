@@ -168,3 +168,22 @@ def test_server_session_scratch_auto_saves_artifacts(tmp_path) -> None:
     assert traj_payload["task_name"] == "train_task_000"
     assert gp_payload["task_name"] == "train_task_000"
     assert "gp_state" in gp_payload
+
+
+def test_server_session_rejects_nan_observation() -> None:
+    """A NaN observation must be rejected (it would otherwise poison the GP)."""
+    runtime = BOServerRuntimeConfig(
+        optimizer="bo_scratch", input_dim=2, y_min=-100.0, y_max=100.0
+    )
+    session = BOServerSession.from_start_message(
+        {"type": "start", "n_init": 2, "n_iter": 1, "seed": 0},
+        runtime_config=runtime,
+    )
+    suggest = session.handle({"type": "suggest"})
+    try:
+        session.handle({"type": "observe", "x": suggest["x"], "y": float("nan")})
+    except ValueError as exc:
+        assert "finite" in str(exc).lower()
+    else:
+        raise AssertionError("Expected ValueError for NaN y.")
+

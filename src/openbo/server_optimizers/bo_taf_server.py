@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -278,6 +279,10 @@ class BOTAFServerSession:
             if self.pending_x is None:
                 raise ValueError("No pending suggestion. Call suggest first.")
             y = float(payload["y"])
+            if not math.isfinite(y):
+                raise ValueError(
+                    f"Observed y={y} must be a finite number (got NaN/inf)."
+                )
             if y < self.y_min or y > self.y_max:
                 raise ValueError(
                     f"Observed y={y} is outside configured y_range=[{self.y_min}, {self.y_max}]."
@@ -342,7 +347,15 @@ async def serve_bo_taf_websocket(
     """Run websocket TAF optimizer server forever."""
 
     async def _handler(websocket) -> None:
-        runtime_config = BOTAFServerRuntimeConfig.from_yaml_file(config_path)
+        try:
+            runtime_config = BOTAFServerRuntimeConfig.from_yaml_file(config_path)
+        except Exception as exc:  # noqa: BLE001
+            # Report a bad/missing config as a clean protocol error instead of
+            # letting the exception abort the socket with an abnormal close.
+            await websocket.send(
+                json.dumps({"type": "error", "message": f"server config error: {exc}"})
+            )
+            return
         session: BOTAFServerSession | None = None
         async for raw in websocket:
             try:

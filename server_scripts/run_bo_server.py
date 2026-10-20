@@ -17,7 +17,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=8765, help="Bind port.")
     parser.add_argument(
         "--config-path",
-        default="configs/server_optimizers/bo_server.yaml",
+        default="configs/server_optimizers/bo_server_botorch.yaml",
         help="Path to server runtime YAML config.",
     )
     return parser.parse_args()

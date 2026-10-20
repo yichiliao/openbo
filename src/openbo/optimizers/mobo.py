@@ -258,6 +258,8 @@ class MOBOSequentialOptimizer:
             raise ValueError(
                 f"y_new must have shape ({x_new.shape[0]}, {self.n_objectives}), got {y_new.shape}."
             )
+        if x_new.shape[0] == 0 or not np.all(np.isfinite(x_new)) or not np.all(np.isfinite(y_new)):
+            raise ValueError("observations must be non-empty and finite.")
         self.x_obs = np.vstack([self.x_obs, x_new])
         self.y_obs = np.vstack([self.y_obs, y_new])
         self.hv_history.append(hypervolume(self.y_obs, self.v_ref))

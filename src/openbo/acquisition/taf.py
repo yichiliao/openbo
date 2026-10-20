@@ -50,16 +50,7 @@ def compute_taf_m_weights(
     if source_meta_features.shape[1] != target_meta_features.shape[0]:
         raise ValueError("source and target meta-features must have same dimension.")
 
-    
-    #distances = np.linalg.norm(
-    #    source_meta_features - target_meta_features[None, :],
-    #    axis=1,
-    #)
-    #return np.array(
-    #    [epanechnikov_weight(float(dist), rho) for dist in distances],
-    #    dtype=np.float64,
-    #)
-    
+
     # Normalize meta-features before distance.
     all_features = np.vstack([source_meta_features, target_meta_features[None, :]])
     mean = np.mean(all_features, axis=0)
@@ -187,10 +178,9 @@ def taf_m_acquisition(
         elif source_improvement_mode == "softplus":
             tau = float(max(source_improvement_temperature, 1e-12))
             # Smooth non-negative approximation of ReLU to reduce sparsity.
-            # exp overflows to inf above about 709; there softplus(z) equals z to machine
-            # precision. The clamp leaves every result that was finite before unchanged.
+            # Numerically stable softplus: log1p(exp(z)) == max(z, 0) + log1p(exp(-|z|)).
             z = delta / tau
-            source_imp = tau * np.where(z > 700.0, z, np.log1p(np.exp(np.minimum(z, 700.0))))
+            source_imp = tau * (np.maximum(z, 0.0) + np.log1p(np.exp(-np.abs(z))))
         else:
             raise ValueError(
                 "source_improvement_mode must be 'relu' or 'softplus'."

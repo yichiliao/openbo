@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import Any, Callable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -23,6 +23,19 @@ TASK_DIMS: dict[str, int] = {
 }
 
 Objective = Callable[[NDArray[np.float64]], NDArray[np.float64]]
+
+# Namespace id so objective-noise RNGs never share a bit stream with the
+# search/optimizer RNGs (which use np.random.default_rng(seed) directly). Without
+# this, a task whose noise seed equals the optimizer seed couples the noise
+# realization to the search points.
+_NOISE_STREAM_ID = 0x0B0
+
+
+def noise_rng(seed: int | None) -> np.random.Generator:
+    """Return a decoupled RNG for objective output noise."""
+    if seed is None:
+        return np.random.default_rng()
+    return np.random.default_rng(np.random.SeedSequence([int(seed), _NOISE_STREAM_ID]))
 
 
 @dataclass(frozen=True)
@@ -51,7 +64,7 @@ class TaskVariantSpec:
         }
 
     @staticmethod
-    def from_dict(data: dict[str, object]) -> "TaskVariantSpec":
+    def from_dict(data: dict[str, Any]) -> "TaskVariantSpec":
         """Construct variant spec from a JSON-like dictionary."""
         return TaskVariantSpec(
             input_shift=tuple(float(v) for v in data["input_shift"]),  # type: ignore[index]
@@ -81,19 +94,25 @@ def make_variant_objective(
     variant: TaskVariantSpec,
     dim: int,
     base_optimum: float | None = None,
+    cap_value: float | None = None,
 ) -> Objective:
-    """Wrap a base objective with an affine input/output variant."""
+    """Wrap a base objective with an affine input/output variant.
+
+    When ``cap_at_optimum`` is set, noisy outputs are clipped at ``cap_value`` if
+    the caller supplies one (its reachable optimum), otherwise at the analytic
+    ``output_scale * base_optimum``. Passing ``cap_value`` keeps the cap
+    consistent with the optimum reported by the caller.
+    """
     variant.validate_for_dim(dim)
     shift = np.array(variant.input_shift, dtype=np.float64)
     scale = np.array(variant.input_scale, dtype=np.float64)
-    rng = np.random.default_rng(variant.seed)
+    rng = noise_rng(variant.seed)
     variant_optimum: float | None = None
-    if (
-        base_optimum is not None
-        and variant.output_scale >= 0.0
-        and variant.cap_at_optimum
-    ):
-        variant_optimum = variant.output_scale * base_optimum
+    if variant.cap_at_optimum and variant.output_scale >= 0.0:
+        if cap_value is not None:
+            variant_optimum = float(cap_value)
+        elif base_optimum is not None:
+            variant_optimum = variant.output_scale * base_optimum
 
     def objective(x: NDArray[np.float64]) -> NDArray[np.float64]:
         x = np.asarray(x, dtype=np.float64)

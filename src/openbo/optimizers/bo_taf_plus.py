@@ -338,12 +338,6 @@ class TAFPlusSequentialOptimizer:
                 # collapses the signal variance), so keep the prior until two.
                 gp.optimize_hyperparameters = self.n_observations >= 2
                 gp.fit(self.x_obs, self.y_obs[:, obj])
-                if gp.y_std < 1e-9:
-                    # GPScratch standardizes one point (or all-equal values) with a
-                    # std of 1e-12, which shrinks the predictive variance to ~1e-24
-                    # and would give the target an overwhelming TAF-PoE weight.
-                    # Its normalized targets are all 0, so a unit scale is exact.
-                    gp.y_std = 1.0
             self._gp_stale = False
 
         decay = self.current_decay()

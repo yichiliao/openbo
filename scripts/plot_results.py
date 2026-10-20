@@ -1,4 +1,4 @@
-"""Run multiple benchmark methods and plot observed y-values."""
+"""Run multiple benchmark methods and plot log10 regret vs iteration."""
 
 from __future__ import annotations
 

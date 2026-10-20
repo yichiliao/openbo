@@ -127,7 +127,7 @@ class PopulationBNN:
     def reset_parameters(self) -> None:
         """Re-initialize weights (seeded by ``config.seed``); keep the normalization."""
         with torch.random.fork_rng(devices=[]):
-            torch.manual_seed(self.config.seed)
+            torch.default_generator.manual_seed(self.config.seed)
             self.net = _MLP(self.config)
         self.optimizer = torch.optim.Adam(self.net.parameters(), lr=self.config.learning_rate)
 

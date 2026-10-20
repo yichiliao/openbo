@@ -15,9 +15,11 @@ Use one of the backend-specific config files:
 - `configs/server_optimizers/taf_plus_server.yaml`
 - `configs/server_optimizers/naf_server.yaml` (Branin; also `naf_server_goldstein_price.yaml` and `naf_server_hartmann3.yaml` for the other two families)
 
-`run_bo_server.py` has no usable default config (its fallback path,
-`configs/server_optimizers/bo_server.yaml`, does not exist), so always pass
-`--config-path` explicitly.
+Without `--config-path`, `run_bo_server.py` uses
+`configs/server_optimizers/bo_server_botorch.yaml`. Pass
+`configs/server_optimizers/bo_server_scratch.yaml` for the scratch backend.
+Every server rejects an `observe.y` that is NaN or infinite, and a missing or
+invalid config file is reported to the client as an `error` message.
 
 Start server with BoTorch backend:
 

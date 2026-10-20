@@ -81,6 +81,38 @@ def test_gp_hyperparameter_optimization_improves_mll() -> None:
     assert nll_after <= nll_before + 1e-6
 
 
+def test_standardization_no_variance_collapse() -> None:
+    """A single or constant target must not collapse posterior variance to ~0."""
+    gp = GPScratch()  # standardize_targets=True by default
+    gp.fit(np.array([[0.3, 0.7]], dtype=np.float64), np.array([2.5], dtype=np.float64))
+    _, var = gp.posterior(np.array([[0.9, 0.1]], dtype=np.float64))
+    assert var[0] > 0.1
+
+    gp_const = GPScratch()
+    gp_const.fit(
+        np.array([[0.0, 0.0], [0.5, 0.5], [1.0, 1.0]], dtype=np.float64),
+        np.full(3, 3.0, dtype=np.float64),
+    )
+    _, var_c = gp_const.posterior(np.array([[0.9, 0.1]], dtype=np.float64))
+    assert var_c[0] > 0.1
+
+
+def test_cross_dimensional_refit_from_scalar_config() -> None:
+    """Refitting one instance on a different dimensionality re-resolves the ARD
+    lengthscale from the original scalar config instead of raising."""
+    gp = GPScratch(lengthscale=1.0)
+    gp.fit(np.array([[0.0, 0.0], [1.0, 1.0]]), np.array([0.0, 1.0]))
+    assert np.asarray(gp.lengthscale).shape == (2,)
+    gp.fit(np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]), np.array([0.0, 1.0]))
+    assert np.asarray(gp.lengthscale).shape == (3,)
+
+
+def test_empty_training_set_raises() -> None:
+    gp = GPScratch()
+    with pytest.raises(ValueError, match="at least one training point"):
+        gp.fit(np.zeros((0, 2), dtype=np.float64), np.zeros((0,), dtype=np.float64))
+
+
 @pytest.mark.parametrize("kernel_type", ["rbf", "matern52"])
 @pytest.mark.parametrize("standardize", [True, False])
 def test_posterior_variance_matches_full_covariance_diagonal(kernel_type: str, standardize: bool) -> None:

@@ -237,11 +237,14 @@ def main() -> None:
             noise_std=noise_std,
             cap_at_optimum=cap_at_optimum,
         )
-        family = build_specs(
-            base_name=args.base_function,
-            variants=variants,
-            prefix=f"{args.base_function}_variant",
-        )
+        def _build_family():
+            return build_specs(
+                base_name=args.base_function,
+                variants=variants,
+                prefix=f"{args.base_function}_variant",
+            )
+
+        family = _build_family()
         eval_variants = variants
     else:
         split = load_family_split(args.split_path)
@@ -262,16 +265,25 @@ def main() -> None:
                 replace(v, noise_std=0.05, cap_at_optimum=True) for v in chosen_variants
             ]
         if args.subset == "train":
-            family = build_specs(split.base_name, chosen_variants, prefix="train_task")
-            eval_variants = chosen_variants
+            def _build_family():
+                return build_specs(split.base_name, chosen_variants, prefix="train_task")
         elif args.subset == "test":
-            family = build_specs(split.base_name, chosen_variants, prefix="test_task")
-            eval_variants = chosen_variants
+            def _build_family():
+                return build_specs(split.base_name, chosen_variants, prefix="test_task")
         else:
             n_train = len(split.train_variants)
-            family = build_specs(split.base_name, chosen_variants[:n_train], prefix="train_task")
-            family += build_specs(split.base_name, chosen_variants[n_train:], prefix="test_task")
-            eval_variants = chosen_variants
+
+            def _build_family():
+                fam = build_specs(
+                    split.base_name, chosen_variants[:n_train], prefix="train_task"
+                )
+                fam += build_specs(
+                    split.base_name, chosen_variants[n_train:], prefix="test_task"
+                )
+                return fam
+
+        family = _build_family()
+        eval_variants = chosen_variants
         source_meta_map = {
             f"train_task_{idx:03d}": _variant_meta_features(variant)
             for idx, variant in enumerate(split.train_variants)
@@ -286,6 +298,24 @@ def main() -> None:
             f"loaded_split subset={args.subset} "
             f"n_tasks={len(family)} split_path={args.split_path}"
         )
+
+    # Explicit meta-features only work when EVERY source surrogate has an entry:
+    # sources are keyed by their gp_states filename, which only matches
+    # train_task_###/test_task_### when the artifacts were produced from this same
+    # split. A partial match yields ragged meta vectors (np.stack error) and a full
+    # mismatch a dimension error, so fall back to the built-in defaults instead.
+    if source_meta_map is not None and args.taf_run_dir is not None:
+        gp_states_dir = Path(args.taf_run_dir) / "gp_states"
+        # Recursive, like the TAF source loader.
+        source_names = sorted(p.stem for p in gp_states_dir.rglob("*.json"))
+        unmatched = [n for n in source_names if n not in source_meta_map]
+        if unmatched:
+            print(
+                "warning: ignoring split meta-features; TAF sources without a split "
+                f"entry: {unmatched[:5]}{'...' if len(unmatched) > 5 else ''}. "
+                "Falling back to default meta-features for all sources."
+            )
+            source_meta_map = None
 
     if args.taf_weight_modes is not None and args.method not in {"bo_taf", "bo_taf_m", "bo_taf_r"}:
         raise ValueError("--taf-weight-modes is supported only when --method=bo_taf.")
@@ -306,6 +336,11 @@ def main() -> None:
     subset_tag = args.subset if args.split_path is not None else "all"
 
     for taf_mode in taf_modes:
+        # Rebuild the family so each mode gets fresh objective closures with
+        # freshly seeded noise RNGs. Otherwise a prior mode advances the shared
+        # per-task noise stream and --taf-weight-modes comparisons become
+        # order-dependent (and unfair) under --noisy.
+        family = _build_family()
         final_bests: list[float] = []
         run_dir_name = f"{args.test_id}_{args.method}_{args.base_function}_{subset_tag}"
         if args.method in {"bo_taf", "bo_taf_m", "bo_taf_r"}:
@@ -315,9 +350,15 @@ def main() -> None:
 
         for idx, spec in enumerate(family):
             task_seed = args.optimizer_seed + idx
+            # Only pass an explicit target meta-feature vector when the source
+            # surrogates also carry matching meta-features (the split path builds
+            # source_meta_map). In the generated-variant path source_meta_map is
+            # None, so the sources keep their 3-dim default meta-features; passing a
+            # (2*dim+3)-dim target here would raise a dimension-mismatch ValueError
+            # inside compute_taf_m_weights. Fall back to the default target meta.
             target_meta = (
                 _variant_meta_features(eval_variants[idx])
-                if eval_variants is not None
+                if source_meta_map is not None and eval_variants is not None
                 else None
             )
             x_values, y_values = _run_one_task(

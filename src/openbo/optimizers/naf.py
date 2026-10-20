@@ -22,7 +22,7 @@ from collections.abc import Callable, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 import numpy as np
 import torch
@@ -80,7 +80,7 @@ class FamilyGPHyperparameters:
         return {"lengthscale": list(self.lengthscale), "variance": self.variance, "noise": self.noise}
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> FamilyGPHyperparameters:
+    def from_dict(cls, payload: dict[str, Any]) -> FamilyGPHyperparameters:
         """Inverse of :meth:`to_dict`."""
         return cls(
             lengthscale=tuple(float(v) for v in payload["lengthscale"]),  # type: ignore[union-attr]
@@ -520,7 +520,7 @@ def train_naf(
     rng = np.random.default_rng(config.seed)
     af = config.new_af()
     with torch.random.fork_rng(devices=[]):
-        torch.manual_seed(config.seed + 1)
+        torch.default_generator.manual_seed(config.seed + 1)
         value_net = mlp(2 + config.n_weights, config.hidden)
     optimizer = torch.optim.Adam(list(af.parameters()) + list(value_net.parameters()), lr=config.learning_rate)
     best_af = config.new_af()

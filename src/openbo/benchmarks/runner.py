@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from openbo.optimizers.bo_botorch import run_bo_botorch
-from openbo.optimizers.bo_scratch import run_bo_scratch
+from openbo.optimizers.bo_botorch import BORunResult as BoTorchRunResult, run_bo_botorch
+from openbo.optimizers.bo_scratch import BORunResult as ScratchRunResult, run_bo_scratch
 from openbo.optimizers.bo_taf import run_bo_taf
 from openbo.optimizers.random_search import RandomSearch
 from openbo.test_functions.registry import get_function_spec
@@ -47,22 +47,41 @@ def run_simple_benchmark(
         bo_steps: int | None,
     ) -> tuple[int, int]:
         """Resolve BO budget from optional n_init/n_iter values."""
+        # Validate any value the caller provided up front. Previously this check
+        # only ran when BOTH were provided, so a single non-positive value slipped
+        # through (e.g. --n-iter 0 silently degraded BO to pure random search).
+        if init_points is not None and init_points <= 0:
+            raise ValueError("n_init must be positive when provided.")
+        if bo_steps is not None and bo_steps <= 0:
+            raise ValueError("n_iter must be positive when provided.")
         if init_points is None and bo_steps is None:
+            # Deriving the split from n_evals needs room for >=1 init AND >=1 BO
+            # step, which is impossible within a single evaluation. (An explicit
+            # init/iter pair below is honored as-is and does not read n_evals.)
+            if total_evals < 2:
+                raise ValueError("BO methods need n_evals >= 2 (init point + BO step).")
             # Teaching-friendly default: 20% random init, rest BO.
             init_points = max(3, int(round(0.2 * total_evals)))
-            init_points = min(init_points, max(total_evals - 1, 1))
-            bo_steps = max(total_evals - init_points, 1)
+            init_points = min(init_points, total_evals - 1)
+            bo_steps = total_evals - init_points
             return init_points, bo_steps
+        # Exactly one value was provided: derive the other from n_evals so the two
+        # sum to exactly n_evals. Clamping with max(..., 1) instead would silently
+        # overrun the budget (e.g. n_evals=10 with n_init=20 ran 21 evaluations),
+        # making a side-by-side comparison against another method unfair.
         if init_points is None:
-            if bo_steps is None:
-                raise ValueError("Internal error: bo_steps should be resolved.")
-            init_points = max(total_evals - bo_steps, 1)
-            return init_points, bo_steps
+            assert bo_steps is not None  # both-None handled above
+            if bo_steps >= total_evals:
+                raise ValueError(
+                    "n_iter must be < n_evals (need room for at least one init point)."
+                )
+            return total_evals - bo_steps, bo_steps
         if bo_steps is None:
-            bo_steps = max(total_evals - init_points, 1)
-            return init_points, bo_steps
-        if init_points <= 0 or bo_steps <= 0:
-            raise ValueError("n_init and n_iter must be positive when provided.")
+            if init_points >= total_evals:
+                raise ValueError(
+                    "n_init must be < n_evals (need room for at least one BO step)."
+                )
+            return init_points, total_evals - init_points
         return init_points, bo_steps
 
     spec = get_function_spec(
@@ -75,6 +94,7 @@ def run_simple_benchmark(
     bounds = spec.bounds
 
     metadata: dict[str, object] | None = None
+    result: ScratchRunResult | BoTorchRunResult
     if method == "random":
         optimizer = RandomSearch(bounds=bounds, seed=seed)
         x, y = optimizer.run(objective=objective, n_evals=n_evals)
@@ -110,12 +130,33 @@ def run_simple_benchmark(
             "taf_r" if method == "bo_taf_r" else
             taf_weight_mode
         )
-        resolved_n_iter = n_evals if n_iter is None else n_iter
+        # Honor a user-provided n_init instead of silently ignoring it. Default
+        # (n_init=None) keeps pure transfer: 0 random init and n_iter=n_evals.
+        if n_init is not None and n_init < 0:
+            raise ValueError("n_init must be non-negative.")
+        # Validate n_iter here too (the TAF path does not go through
+        # resolve_bo_budget), so an explicit n_iter=0 fails clearly instead of
+        # reaching run_bo_taf and erroring with "finished without any observations".
+        if n_iter is not None and n_iter <= 0:
+            raise ValueError("n_iter must be positive when provided.")
+        taf_n_init = 0 if n_init is None else n_init
+        if n_iter is not None:
+            resolved_n_iter = n_iter
+        elif taf_n_init > 0:
+            # Derive the BO steps from the total budget so init + iter == n_evals
+            # exactly (no off-by-one overrun when n_init is large).
+            if taf_n_init >= n_evals:
+                raise ValueError(
+                    "n_init must be < n_evals for TAF methods (need room for a BO step)."
+                )
+            resolved_n_iter = n_evals - taf_n_init
+        else:
+            resolved_n_iter = n_evals
         result = run_bo_taf(
             objective=objective,
             bounds=bounds,
             taf_run_dir=taf_run_dir,
-            n_init=0,
+            n_init=taf_n_init,
             n_iter=resolved_n_iter,
             rho=taf_rho,
             taf_weight_mode=resolved_taf_mode,

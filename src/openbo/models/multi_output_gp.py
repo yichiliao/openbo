@@ -89,20 +89,24 @@ class MultiOutputGP:
         shapes warm-start from the previous hyperparameters and run
         ``refit_restarts`` starts, which is much cheaper inside a BO loop.
         """
-        self.x_train = np.asarray(x, dtype=np.float64)
+        x_arr = np.asarray(x, dtype=np.float64)
         y_arr = np.asarray(y, dtype=np.float64)
-        if self.x_train.ndim != 2:
+        if x_arr.ndim != 2 or x_arr.shape[0] == 0 or x_arr.shape[1] == 0:
             raise ValueError("x must have shape (n, d).")
-        if y_arr.ndim != 2 or y_arr.shape[0] != self.x_train.shape[0]:
+        if y_arr.ndim != 2 or y_arr.shape[0] != x_arr.shape[0] or y_arr.shape[1] == 0:
             raise ValueError("y must have shape (n, L) and match x rows.")
+        if not np.all(np.isfinite(x_arr)) or not np.all(np.isfinite(y_arr)):
+            raise ValueError("x and y must be finite.")
         if self.mode not in ("independent", "mt", "slf"):
             raise ValueError(f"Unknown mode '{self.mode}'.")
+        self.x_train = x_arr
 
         self.n_objectives = y_arr.shape[1]
         self.dim = self.x_train.shape[1]
         self.n_latent = 1 if self.mode == "mt" else self.n_objectives
         self.y_mean = y_arr.mean(axis=0)
-        self.y_std = y_arr.std(axis=0) + 1e-12
+        raw_std = y_arr.std(axis=0)
+        self.y_std = np.where(raw_std > 1e-8, raw_std, 1.0)
         y_norm = (y_arr - self.y_mean) / self.y_std
         # Objective-major stacking: block l holds objective l at all inputs.
         self._y_vec = y_norm.T.reshape(-1)

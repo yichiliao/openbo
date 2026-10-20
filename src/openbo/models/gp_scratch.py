@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -14,34 +13,64 @@ from openbo.models.kernels import matern52_kernel, rbf_kernel
 
 @dataclass
 class GPScratch:
-    """Teaching-oriented GP regression with selectable kernels."""
+    """Teaching-oriented GP regression with selectable kernels.
+
+    ``mean_constant`` is the prior mean in standardized target units. The
+    optional ``fixed_target_mean/std`` replay a saved model's outcome transform;
+    ordinary fits estimate scaling from their training targets instead.
+    """
 
     lengthscale: float | NDArray[np.float64] = 1.0
     variance: float = 1.0
     noise: float = 1e-6
-    kernel_type: Literal["rbf", "matern52"] = "matern52"
+    kernel_type: str = "matern52"
     optimize_hyperparameters: bool = False
     optimizer_maxiter: int = 75
     optimizer_restarts: int = 8
     optimizer_seed: int | None = None
     standardize_targets: bool = True
     optimize_noise: bool = False
+    mean_constant: float = 0.0
+    fixed_target_mean: float | None = None
+    fixed_target_std: float | None = None
     y_mean: float = field(default=0.0, init=False)
     y_std: float = field(default=1.0, init=False)
     y_train_norm: NDArray[np.float64] | None = field(default=None, init=False)
 
     def fit(self, x: NDArray[np.float64], y: NDArray[np.float64]) -> None:
         """Fit GP by caching train data and solving kernel system."""
-        self.x_train = np.asarray(x, dtype=np.float64)
-        self.y_train = np.asarray(y, dtype=np.float64)
-        if self.x_train.ndim != 2:
+        x_train = np.asarray(x, dtype=np.float64)
+        y_train = np.asarray(y, dtype=np.float64)
+        if x_train.ndim != 2 or x_train.shape[1] == 0:
             raise ValueError("x must have shape (n, d).")
-        if self.y_train.ndim != 1 or self.y_train.shape[0] != self.x_train.shape[0]:
+        if y_train.ndim != 1 or y_train.shape[0] != x_train.shape[0]:
             raise ValueError("y must have shape (n,) and match x rows.")
+        if x_train.shape[0] == 0:
+            raise ValueError("need at least one training point to fit the GP.")
+        if not np.all(np.isfinite(x_train)) or not np.all(np.isfinite(y_train)):
+            raise ValueError("x and y must be finite.")
+        if not np.isfinite(self.variance) or self.variance <= 0:
+            raise ValueError("variance must be finite and positive.")
+        if not np.isfinite(self.noise) or self.noise < 0:
+            raise ValueError("noise must be finite and non-negative.")
+        if not np.isfinite(self.mean_constant):
+            raise ValueError("mean_constant must be finite.")
+        self.x_train, self.y_train = x_train, y_train
+
+        # Preserve the user's original lengthscale config so re-fitting the same
+        # instance on data of a different dimensionality re-resolves from it,
+        # instead of tripping over a stale ARD vector from a previous fit.
+        if not hasattr(self, "_lengthscale_config"):
+            self._lengthscale_config = self.lengthscale
 
         d = self.x_train.shape[1]
+        stale = np.asarray(self.lengthscale, dtype=np.float64)
+        if stale.ndim == 1 and stale.shape[0] != d:
+            self.lengthscale = self._lengthscale_config
         self.lengthscale = self._resolve_lengthscale(d)
         self._set_target_scaling()
+        assert self.y_train_norm is not None
+        self.y_train_norm = self.y_train_norm - self.mean_constant
 
         if self.optimize_hyperparameters:
             self._optimize_hyperparameters()
@@ -64,7 +93,7 @@ class GPScratch:
             raise ValueError("x_test must have shape (m, d) or (d,).")
 
         k_xs = self._kernel(self.x_train, x_test)
-        mean_norm = k_xs.T @ self.alpha
+        mean_norm = self.mean_constant + k_xs.T @ self.alpha
         v = np.linalg.solve(self.l_chol, k_xs)
         # Both kernels are stationary, so the prior variance is `variance` at
         # every point; only the diagonal of the posterior covariance is needed,
@@ -75,9 +104,24 @@ class GPScratch:
         return mean.astype(np.float64), var.astype(np.float64)
 
     def _set_target_scaling(self) -> None:
+        if self.fixed_target_mean is not None or self.fixed_target_std is not None:
+            if (
+                self.fixed_target_mean is None or self.fixed_target_std is None
+                or not np.isfinite(self.fixed_target_mean)
+                or not np.isfinite(self.fixed_target_std) or self.fixed_target_std <= 0
+            ):
+                raise ValueError("fixed target mean/std must be finite, with std > 0.")
+            self.y_mean, self.y_std = self.fixed_target_mean, self.fixed_target_std
+            self.y_train_norm = (self.y_train - self.y_mean) / self.y_std
+            return
         if self.standardize_targets:
             self.y_mean = float(np.mean(self.y_train))
-            self.y_std = float(np.std(self.y_train) + 1e-12)
+            raw_std = float(np.std(self.y_train))
+            # Floor a (near-)zero spread to 1.0 rather than adding a tiny epsilon.
+            # For n=1 or constant targets np.std is 0, and the old `std + 1e-12`
+            # made y_std ~1e-12, so posterior var = var_norm * y_std**2 ~ 1e-24
+            # collapsed uncertainty to ~0 everywhere (default config, e.g. n_init=1).
+            self.y_std = raw_std if raw_std > 1e-8 else 1.0
             self.y_train_norm = ((self.y_train - self.y_mean) / self.y_std).astype(
                 np.float64
             )
@@ -101,12 +145,12 @@ class GPScratch:
         ls = np.asarray(self.lengthscale, dtype=np.float64)
         if ls.ndim == 0:
             val = float(ls)
-            if val <= 0:
+            if not np.isfinite(val) or val <= 0:
                 raise ValueError("lengthscale must be positive.")
             return np.full(d, val, dtype=np.float64)
         if ls.ndim != 1 or ls.shape[0] != d:
             raise ValueError(f"lengthscale must be scalar or shape ({d},).")
-        if np.any(ls <= 0):
+        if not np.all(np.isfinite(ls)) or np.any(ls <= 0):
             raise ValueError("all ARD lengthscales must be positive.")
         return ls.astype(np.float64)
 
@@ -117,7 +161,7 @@ class GPScratch:
         jitter = 1e-10
         for _ in range(8):
             try:
-                return np.linalg.cholesky(matrix + jitter * eye)
+                return np.linalg.cholesky(matrix + jitter * eye).astype(np.float64, copy=False)
             except np.linalg.LinAlgError:
                 jitter *= 10.0
         raise np.linalg.LinAlgError("Cholesky failed even after jitter escalation.")
@@ -151,6 +195,8 @@ class GPScratch:
             or self.y_train_norm.shape != self.y_train.shape
         ):
             self._set_target_scaling()
+            assert self.y_train_norm is not None
+            self.y_train_norm = self.y_train_norm - self.mean_constant
 
         d = self.x_train.shape[1]
         lengthscale = np.exp(theta[:d])

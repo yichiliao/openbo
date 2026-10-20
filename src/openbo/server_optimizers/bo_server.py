@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import re
 from datetime import datetime, timezone
 from dataclasses import dataclass
@@ -141,6 +142,8 @@ class BOServerSession:
                 raise ValueError("task_name must be non-empty when provided.")
             task_name = candidate
 
+        config: BoTorchConfig | ScratchConfig
+        optimizer: BoTorchSequentialOptimizer | ScratchSequentialOptimizer
         if optimizer_name == "bo_botorch":
             config = BoTorchConfig(
                 bounds=bounds,
@@ -249,6 +252,17 @@ class BOServerSession:
     def _done_payload(self) -> dict[str, Any]:
         result = self.optimizer.result()
         self._persist_scratch_artifacts_if_enabled(result)
+        if result.y_obs.size == 0:
+            return {
+                "type": "done",
+                "optimizer": self.optimizer_name,
+                "total_observations": 0,
+                "best_value": None,
+                "best_x": None,
+                "x_values": [],
+                "y_values": [],
+                "best_y_history": [],
+            }
         best_idx = int(np.argmax(result.y_obs))
         return {
             "type": "done",
@@ -312,6 +326,10 @@ class BOServerSession:
             if self.pending_x is None:
                 raise ValueError("No pending suggestion. Call suggest first.")
             y = float(payload["y"])
+            if not math.isfinite(y):
+                raise ValueError(
+                    f"Observed y={y} must be a finite number (got NaN/inf)."
+                )
             if y < self.y_min or y > self.y_max:
                 raise ValueError(
                     f"Observed y={y} is outside configured y_range=[{self.y_min}, {self.y_max}]."
@@ -353,11 +371,19 @@ class BOServerSession:
 async def serve_bo_websocket(
     host: str = "127.0.0.1",
     port: int = 8765,
-    config_path: str | Path = "configs/server_optimizers/bo_server.yaml",
+    config_path: str | Path = "configs/server_optimizers/bo_server_botorch.yaml",
 ) -> None:
     """Run generic websocket optimizer server forever."""
     async def _handler(websocket) -> None:
-        runtime_config = BOServerRuntimeConfig.from_yaml_file(config_path)
+        try:
+            runtime_config = BOServerRuntimeConfig.from_yaml_file(config_path)
+        except Exception as exc:  # noqa: BLE001
+            # Report a bad/missing config as a clean protocol error instead of
+            # letting the exception abort the socket with an abnormal close.
+            await websocket.send(
+                json.dumps({"type": "error", "message": f"server config error: {exc}"})
+            )
+            return
         session: BOServerSession | None = None
         async for raw in websocket:
             try:

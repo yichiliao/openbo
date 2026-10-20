@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable
+import warnings
+from dataclasses import dataclass, replace
+from typing import Callable, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -18,9 +19,52 @@ from openbo.test_functions.synthetic import (
     rosenbrock,
     sphere,
 )
-from openbo.test_functions.tasks import TASK_DIMS, TaskVariantSpec, make_variant_objective
+from openbo.test_functions.tasks import (
+    TASK_DIMS,
+    TaskVariantSpec,
+    make_variant_objective,
+    noise_rng,
+)
 
 Objective = Callable[[NDArray[np.float64]], NDArray[np.float64]]
+
+
+_warned_high_dim_optimum = False
+
+
+def _estimate_reachable_optimum(
+    clean_objective: Objective, dim: int, upper_bound: float
+) -> float:
+    """Estimate the maximum of a noise-free variant objective over ``[0, 1]^d``.
+
+    The affine input transform clips into a sub-box of ``[0, 1]^d``, so the base
+    optimum can be out of reach and the true maximum strictly below
+    ``upper_bound = output_scale * base_optimum``. Up to 3D, ``estimate_optimum``
+    scans a full grid and polishes the best points. Above that its Sobol scan can
+    miss the optimum of a multi-modal function, and an under-estimate would clip
+    noisy values too low, so the analytic upper bound is kept (with one warning).
+    """
+    global _warned_high_dim_optimum
+    if dim > 3:
+        if not _warned_high_dim_optimum:
+            warnings.warn(
+                "Variant optima above 3D are the analytic upper bound "
+                "(output_scale * base_optimum); if input clipping puts the base "
+                "optimum out of reach, log-regret plateaus above 0.",
+                stacklevel=3,
+            )
+            _warned_high_dim_optimum = True
+        return upper_bound
+
+    # Imported here: families imports this module.
+    from openbo.test_functions.families import estimate_optimum
+
+    best = min(estimate_optimum(clean_objective, dim), upper_bound)
+    # When the base optimum is still reachable the search lands a hair below the
+    # analytic bound; snap to it so best-so-far values never exceed the optimum.
+    if upper_bound - best <= 1e-6 * max(1.0, abs(upper_bound)):
+        return float(upper_bound)
+    return float(best)
 
 
 @dataclass(frozen=True)
@@ -117,10 +161,11 @@ def get_function_spec(
     if noise_std == 0.0:
         return spec
 
-    rng = np.random.default_rng(noise_seed)
+    rng = noise_rng(noise_seed)
+    noisy_function = cast(Callable[..., NDArray[np.float64]], spec.objective)
 
     def noisy_objective(x: NDArray[np.float64]) -> NDArray[np.float64]:
-        return spec.objective(
+        return noisy_function(
             x,
             noise_std=noise_std,
             rng=rng,
@@ -143,15 +188,31 @@ def make_variant_function_spec(
 ) -> FunctionSpec:
     """Create one task variant from a base function."""
     base = get_function_spec(base_name)
+    variant_optimum: float | None = None
+    if base.optimum is not None and variant.output_scale >= 0.0:
+        upper_bound = variant.output_scale * base.optimum
+        # The base optimum can become unreachable once the affine transform clips
+        # into a sub-box of [0,1]^d, so estimate the true reachable maximum on the
+        # noise-free variant rather than assuming output_scale*base_optimum.
+        clean_variant = make_variant_objective(
+            base.objective,
+            replace(variant, noise_std=0.0, cap_at_optimum=False),
+            dim=base.dim,
+            base_optimum=base.optimum,
+        )
+        variant_optimum = _estimate_reachable_optimum(
+            clean_variant, base.dim, upper_bound
+        )
+    # Cap noisy outputs at the SAME reachable optimum we report, so capped
+    # observations never exceed FunctionSpec.optimum (which would make regret
+    # negative and log-regret NaN) for shifted/scaled variants, not just identity.
     objective = make_variant_objective(
         base.objective,
         variant,
         dim=base.dim,
         base_optimum=base.optimum,
+        cap_value=variant_optimum,
     )
-    variant_optimum: float | None = None
-    if base.optimum is not None and variant.output_scale >= 0.0:
-        variant_optimum = variant.output_scale * base.optimum
     return FunctionSpec(
         name=variant_name or f"{base_name}_variant",
         objective=objective,

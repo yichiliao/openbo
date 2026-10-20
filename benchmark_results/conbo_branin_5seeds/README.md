@@ -3,6 +3,8 @@
 ConBO Phase 6 benchmark (see `docs/plans/conbo.md`), run on 2026-10-10 with
 the grid refinement and the benchmark runner from the commit that adds this folder.
 
+> **Reproducing:** later code gives slightly different numbers (the GP fix for all-equal observations changes the TAF baselines: in seed 0, TAF-R keeps proposing one design for two users, and its target GP then saw only identical values; see `docs/guide/results.md`, "Code changes since the archives"). Check out the commit that adds this folder to reproduce them exactly.
+
 **Setup** (the paper's Test 1): for each seed, 15 simulated Branin users in a fixed
 order (`generate_user_variants("branin", 15, shift_range=0.3, scale_range=0.2,
 seed=seed)`), 30 evaluations each, `r0 = 16` random starts decaying by `dr = 5`

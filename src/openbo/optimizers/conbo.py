@@ -281,11 +281,12 @@ class ConBOSequentialOptimizer:
         if weight < 1.0 and self._gp_stale:
             self.gp.fit(self.x_obs, self.y_obs)
             self._gp_stale = False
-        pop_mean = self.bnn.predict(self.candidates)[0] if weight > 0.0 else np.empty(0)
+        bnn = self.bnn
+        pop_mean = bnn.predict(self.candidates)[0] if bnn is not None and weight > 0.0 else np.empty(0)
         best_pop, best_user = default_incumbents(self.y_obs, pop_mean)
 
         def acquisition(x: NDArray[np.float64]) -> NDArray[np.float64]:
-            pop_pred = self.bnn.predict(x) if weight > 0.0 else None
+            pop_pred = bnn.predict(x) if bnn is not None and weight > 0.0 else None
             user_pred = self.gp.posterior(x) if weight < 1.0 else None
             return mixed_expected_improvement(weight, pop_pred, user_pred, best_pop, best_user)
 

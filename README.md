@@ -37,7 +37,8 @@ The full command reference is in [`docs/guide/`](docs/guide/README.md):
 | Benchmarks on one test function | [single-function.md](docs/guide/single-function.md) |
 | Families of related tasks, train/test splits | [families.md](docs/guide/families.md) |
 | TAF (transfer acquisition function) | [taf.md](docs/guide/taf.md) |
-| Multi-objective BO, and TAF-EHVI (multi-objective transfer) | [mobo.md](docs/guide/mobo.md) |
+| Multi-objective BO | [mobo.md](docs/guide/mobo.md) |
+| TAF-EHVI (transfer for multi-objective BO) | [taf-ehvi.md](docs/guide/taf-ehvi.md) |
 | Continual BO (ConBO) | [conbo.md](docs/guide/conbo.md) |
 | TAF+ | [taf-plus.md](docs/guide/taf-plus.md) |
 | NAF (MetaBO) | [naf.md](docs/guide/naf.md) |

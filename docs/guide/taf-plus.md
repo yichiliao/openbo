@@ -128,7 +128,7 @@ uv run python scripts/plot_taf_plus_results.py --test-id demo
 | `taf` | the same without decay (the paper's multi-objective TAF) |
 | `bo` | scratch EI on the noisy weighted sum, 5 random starts |
 | `random` | uniform random designs |
-| `taf_ehvi` | TAF-EHVI ([Multi-objective BO](mobo.md#taf-ehvi-and-the-botorch-compatibility-api)) with the population's users as sources; optimizes hypervolume and never sees `alpha`; 1 random start, then 19 steps |
+| `taf_ehvi` | [TAF-EHVI](taf-ehvi.md) with the population's users as sources; optimizes hypervolume and never sees `alpha`; 1 random start, then 19 steps |
 | `mobo` | plain qLogNEHVI with the same start and settings (TAF-EHVI without sources) |
 
 `--metric hv` scores every method on the noise-free hypervolume of the designs evaluated so far, against the user's true Pareto front (traced by maximizing 861 weighted sums; the first plot computes it, about 25 s per user, and caches it in `plots/pareto_hypervolume.json`). TAF-EHVI and qLogNEHVI take about 100 and 75 minutes per setting on one thread; run one process per setting with `OMP_NUM_THREADS=1`.

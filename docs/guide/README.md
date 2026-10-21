@@ -12,7 +12,8 @@ The command reference for OpenBO: every script, flag, server protocol and archiv
 **Methods**
 
 - [TAF: transfer from source tasks](taf.md): train source GPs, test TAF on held-out tasks, and the end-to-end TAF workflow through the servers.
-- [Multi-objective BO](mobo.md): CEIPV/IEIPV with correlated GPs, a qLogNEHVI baseline, and TAF-EHVI (multi-objective transfer from earlier tasks or users); benchmark and server (no server for TAF-EHVI yet).
+- [Multi-objective BO](mobo.md): CEIPV/IEIPV with correlated GPs and a qLogNEHVI baseline; benchmark and server.
+- [TAF-EHVI](taf-ehvi.md): transfer for multi-objective BO, from earlier tasks or users; Python, benchmark and results (no server yet).
 - [Continual BO (ConBO)](conbo.md): a population model across a sequence of users; Python, benchmark and server.
 - [TAF+](taf-plus.md): transfer across users with several objectives; workflow, simulations and server.
 - [NAF (MetaBO)](naf.md): train a neural acquisition function with PPO, benchmark it, serve it.

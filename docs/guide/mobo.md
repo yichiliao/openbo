@@ -53,22 +53,10 @@ The website's Methods page has a `run_mobo` example on OKA2.
 `observe(x, y)` / `result()` ask/tell interface as the single-objective
 optimizers.
 
-### TAF-EHVI and the BoTorch compatibility API
+### The BoTorch baseline's two calling conventions
 
-OpenBO also provides `run_mobo_taf` in `openbo.optimizers.mobo_taf`: it
-blends the target's qLogNEHVI with source hypervolume improvements. Source
-trajectories must contain `y_values` of shape `(n, M)` and matching per-objective
-GP states. `taf_weight_mode="taf_r"` uses objective-wise pairwise ranking;
-`"taf_r_pareto"` keeps the Pareto-dominance alternative for comparisons.
-With no accepted sources, the target acquisition reduces to the baseline. It needs at least one
-initial point (`n_init >= 1`), and it is not yet registered in the MOBO
-benchmark runner or served by a WebSocket server. It is benchmarked on the
-TAF+ simulation users, with TAF+ populations as sources
-([TAF+ benchmark](taf-plus.md#benchmark-and-plot); results in
-[`taf_plus_sims`](../../benchmark_results/taf_plus_sims/README.md#taf-ehvi-and-plain-qlognehvi-added-2026-10-21)):
-transfer helps over plain qLogNEHVI for about the first 10 evaluations, and the
-two are level by 20. `write_population_sources` turns a saved TAF+ population into
-TAF-EHVI sources.
+For transfer between multi-objective tasks or users, see
+[TAF-EHVI](taf-ehvi.md), which builds on this BoTorch baseline.
 
 The BoTorch helper accepts both calling conventions:
 

@@ -171,8 +171,11 @@ evaluations, one seed), with full tables in
 - It needs at least one observation before its first suggestion (`n_init >= 1`);
   it cannot start from the sources alone, as TAF and TAF+ do. That start might
   close the early gap to TAF+.
-- No WebSocket server yet, and not registered in the MOBO benchmark runner
-  (`benchmarks/mobo_runner.py`); it is benchmarked only through the TAF+ runner.
+- Served, together with TAF-EIPV, by the TAF-MOBO WebSocket server
+  (`server_scripts/run_taf_mobo_server.py`, port 8772, `method: taf_ehvi`;
+  [protocol](servers.md#taf-mobo-server-protocol)). Not registered in the MOBO
+  benchmark runner (`benchmarks/mobo_runner.py`); it is benchmarked only through
+  the TAF+ runner.
 - No design plan in `docs/plans/` and no paper in `relevant_papers/references.bib`.
 - Only its defaults were benchmarked (TAF-R weights, no warmup, no decay), with
   one seed.

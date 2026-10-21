@@ -1,0 +1,23 @@
+# TAF-MOBO: transfer for multi-objective BO, in normalized [0, 1]^d.
+# One session is one new user; all objectives are maximized and the client sends
+# y = [y_1, ..., y_L]. Set up for the TAF+ App. B sphere users (4D input, 3 objectives).
+input_dim: 4
+# One [min, max] per objective. Observations outside are rejected.
+y_range: [[-12.0, 2.0], [-12.0, 2.0], [-12.0, 2.0]]
+# Hypervolume box: v_ref below every objective's worst value of interest, w_ref
+# above its best. They default to the y_range corners; these match the benchmark.
+v_ref: [-1.0, -1.0, -1.0]
+w_ref: [1.2, 1.2, 1.2]
+# The sources (read-only; finished users are not added). Set exactly one:
+# population_dir: a saved TAFPlusPopulation; taf_run_dir: the TAF run layout.
+# This one is the archived Simulation 2 population, range 0.1.
+population_dir: benchmark_results/taf_plus_sims/populations/v1_sim2_r01_s0
+# Defaults used when the start message omits a field.
+method_default: taf_eipv   # taf_eipv (OpenBO MOBO, recommended) | taf_ehvi (BoTorch)
+n_iter_default: 10         # total evaluations per session
+n_init_default: null       # random designs first; null = 0 for taf_eipv, 1 for taf_ehvi
+weight_mode_default: taf_r # taf_eipv: taf_r | uniform; taf_ehvi: taf_r | taf_r_pareto | taf_m
+rho_default: 1.0
+n_candidates_default: 1024 # taf_eipv: Sobol pool size
+num_restarts_default: 4    # taf_ehvi: acquisition restarts
+raw_samples_default: 256   # taf_ehvi: raw samples

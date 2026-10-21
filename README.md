@@ -1,6 +1,6 @@
 # OpenBO
 
-OpenBO is a research and teaching Python library for Bayesian optimization (BO): standard BO (from scratch in NumPy, and with BoTorch), transfer and meta-BO (TAF, TAF+, continual BO, MetaBO-style neural acquisition functions) and multi-objective BO, including multi-objective transfer (TAF-MOBO). Every optimizer has a Python ask/tell interface and benchmark scripts, and all but TAF-MOBO have a WebSocket server for human-in-the-loop studies.
+OpenBO is a research and teaching Python library for Bayesian optimization (BO): standard BO (from scratch in NumPy, and with BoTorch), transfer and meta-BO (TAF, TAF+, continual BO, MetaBO-style neural acquisition functions) and multi-objective BO, including multi-objective transfer (TAF-MOBO). Every optimizer has a Python ask/tell interface, benchmark scripts and a WebSocket server for human-in-the-loop studies.
 
 **Website: [https://www.csie.ntu.edu.tw/~yichi/openbo-website/](https://www.csie.ntu.edu.tw/~yichi/openbo-website/index.html)**, with the overview, [how to call each method](https://www.csie.ntu.edu.tw/~yichi/openbo-website/methods.html), [interactive demos](https://www.csie.ntu.edu.tw/~yichi/openbo-website/demos.html), [benchmark results](https://www.csie.ntu.edu.tw/~yichi/openbo-website/benchmarks.html) and [how to cite](https://www.csie.ntu.edu.tw/~yichi/openbo-website/publications.html).
 
@@ -55,7 +55,7 @@ OpenBO is licensed under the MIT License; see [LICENSE](LICENSE). If you use Ope
 
 ```bibtex
 @software{liao2026openbo,
-  author    = {Yi-Chi Liao and Mark Colley and Chih-Hao Hsu and Kuan-Lin Lee},
+  author    = {Yi-Chi Liao and Mark Colley and George Mo and Chih-Hao Hsu and Kuan-Lin Lee},
   title     = {{OpenBO}: An Open-Source Library for Bayesian Optimization},
   year      = {2026},
   publisher = {GitHub},

@@ -4,7 +4,7 @@ Status: **implemented and benchmarked** (2026-10-21): `acquisition/taf_eipv.py`,
 `optimizers/mobo_taf_eipv.py`, `tests/taf_eipv_test.py`, the `taf_eipv` and `ieipv`
 methods of `benchmarks/taf_plus_runner.py`, results in
 `benchmark_results/taf_plus_sims/README.md`, user guide `docs/guide/taf-eipv.md`.
-Next (roadmap item 2): a WebSocket server that can serve TAF-EIPV or TAF-EHVI.
+Served (with TAF-EHVI) by `server_optimizers/taf_mobo_server.py` (port 8772, 2026-10-21).
 
 Result in one line: on hypervolume TAF-EIPV is the best method at almost every
 evaluation on the TAF+ simulation users for ranges up to 0.2, starting level with

@@ -161,7 +161,7 @@ evaluations, one seed); full tables in
 
 ## Limitations and open work
 
-- No WebSocket server yet (planned: one server for TAF-EIPV and TAF-EHVI).
+- Served, together with TAF-EHVI, by the TAF-MOBO WebSocket server (`server_scripts/run_taf_mobo_server.py`, port 8772; [protocol](servers.md#taf-mobo-server-protocol)).
 - Only its defaults were benchmarked (TAF-R weights, no decay, IEIPV), with one
   seed; CEIPV and the decay are untested in the benchmark.
 - Not registered in the MOBO benchmark runner (`benchmarks/mobo_runner.py`).

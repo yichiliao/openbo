@@ -1,7 +1,7 @@
 # Port coverage and numerical backends
 
 This crate ports the implemented OpenBO workflows from upstream
-[`a22d861401a157e2379bdb44355323819ea05414`](https://github.com/yichiliao/openbo/commit/a22d861401a157e2379bdb44355323819ea05414).
+[`3ceda2d34225d2f1601fc57815cd821fbc78f37d`](https://github.com/yichiliao/openbo/commit/3ceda2d34225d2f1601fc57815cd821fbc78f37d).
 It is a separate native library and command-line program in `rust/`. Python stays
 available in the parent project. Start with [README.md](README.md); the test record
 is in [VALIDATION.md](VALIDATION.md).
@@ -20,6 +20,7 @@ is in [VALIDATION.md](VALIDATION.md).
 | Pareto geometry and MO acquisitions | `acquisition` | Exact hypervolume and cells, Monte Carlo EHVI/NEHVI, IEIPV, moment-matched CEIPV and printed-paper EIPV form |
 | Random, scratch and BoTorch BO wrappers | `optimizers` | Unified scalar/MO ask/tell; native EI or Monte Carlo NEHVI; seeded candidate pools and bounded refinement |
 | Scalar/MO TAF and TAF+ | `optimizers` | Source loading, weights, source warmup, decay, target fallback, per-user objective GPs and histories |
+| TAF-EIPV and TAF-MOBO server | `acquisition`, `optimizers`, `server` | Source gain against current target designs, pooled per-objective ranking weights, stable log blend, native target IEIPV/CEIPV, source-only starts and total-budget server sessions |
 | TAF+ workflow | `optimizers` | Positive simplex weight grid, rating-based weight selection, leave-one-user-out decay search |
 | Population BNN and generative replay | `neural` | Actual heteroscedastic NLL/backpropagation, Adam, MC dropout, mean/variance replay and uncertainty filtering |
 | ConBO | `optimizers::ConboPopulation` | Successive users, reduced initialization, population/user mixed EI, online adaptation, replay, reset/continued training and native persistence |
@@ -84,6 +85,9 @@ must follow the same normalization convention as the target experiment.
 Rust result files contain objective rows, histories for every evaluation and
 backend metadata; standard optimizer results also retain their configuration.
 They are a native schema, not replacements for every archived Python result file.
+`suggestion_seconds` and `total_suggestion_seconds` measure successful suggestion
+calls. CLI `elapsed_seconds` measures the complete run (for ConBO, a user plus
+population training). These wall-clock values are not deterministic seed outputs.
 
 Native neural and ConBO checkpoints are JSON with validation on load. A native
 NAF training checkpoint includes Adam and RNG state for exact native resume.

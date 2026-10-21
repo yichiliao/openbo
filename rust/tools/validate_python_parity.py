@@ -19,6 +19,12 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from openbo.acquisition.ei import expected_improvement_maximization
 from openbo.acquisition.taf import compute_taf_m_weights
+from openbo.acquisition.taf_eipv import (
+    log_taf_eipv,
+    reference_cells,
+    source_improvement,
+    taf_r_source_weights,
+)
 from openbo.benchmarks.hypervolume import hypervolume
 from openbo.models.gp_scratch import GPScratch
 from openbo.test_functions.metabo_families import (
@@ -56,7 +62,7 @@ def main() -> None:
             check=True,
         )
     binary = args.binary or ROOT / "rust/target/release" / executable
-    if not binary.exists():
+    if args.binary is None and not binary.exists():
         binary = ROOT / "rust/target/debug" / executable
     if not binary.exists():
         parser.error(
@@ -77,6 +83,8 @@ def main() -> None:
     def compare(name, actual, expected, *, atol=1e-9, rtol=1e-8):
         actual = np.asarray(actual, dtype=float)
         expected = np.asarray(expected, dtype=float)
+        if actual.shape != expected.shape:
+            raise AssertionError(f"{name}: shape mismatch {actual.shape} != {expected.shape}")
         np.testing.assert_allclose(actual, expected, atol=atol, rtol=rtol, err_msg=name)
         checks.append(
             {
@@ -215,6 +223,61 @@ def main() -> None:
             compute_taf_m_weights(source_meta, target_meta, rho),
             atol=1e-12,
         )
+
+    for dim in [2, 3]:
+        lower, upper = np.full(dim, -1.0), np.full(dim, 2.0)
+        means = rng.uniform(-1.5, 3.0, (19, dim))
+        for label, front in [
+            ("empty", np.empty((0, dim))),
+            ("partial", rng.uniform(-0.5, 1.5, (7, dim))),
+        ]:
+            expected = source_improvement(means, reference_cells(front, lower, upper))
+            actual = native(
+                ["acquisition"],
+                {
+                    "operation": "taf_eipv_sources",
+                    "front": front.tolist(),
+                    "reference": lower.tolist(),
+                    "upper": upper.tolist(),
+                    "mean": means.tolist(),
+                },
+            )
+            compare(f"taf_eipv/source_gain/{dim}/{label}", actual, expected, atol=1e-10)
+    target = rng.normal(size=(7, 3))
+    predicted = np.stack([target, -target, rng.normal(size=target.shape)])
+    for rho in [0.1, 0.7, 1.0]:
+        expected = taf_r_source_weights(target, predicted, rho)
+        actual = native(
+            ["acquisition"],
+            {
+                "operation": "taf_eipv_weights",
+                "y": target.tolist(),
+                "predictions": predicted.tolist(),
+                "rho": rho,
+            },
+        )
+        compare(f"taf_eipv/ranking/{rho}", actual, expected, atol=1e-12)
+    terms = rng.uniform(0.0, 3.0, (3, 13))
+    terms[0, 0] = 0.0
+    weights = np.array([0.75, 0.0, 0.6])
+    log_target = np.log(rng.uniform(0.01, 1.0, 13))
+    for label, target, sources, source_weights in [
+        ("joint", log_target, terms, weights),
+        ("sources", None, terms, weights),
+        ("target", log_target, np.empty((0, 13)), np.empty(0)),
+    ]:
+        expected = log_taf_eipv(target, sources, source_weights, 0.75)
+        actual = native(
+            ["acquisition"],
+            {
+                "operation": "taf_eipv_blend",
+                "target_log": None if target is None else target.tolist(),
+                "source_terms": sources.tolist(),
+                "weights": source_weights.tolist(),
+                "target_weight": 0.75,
+            },
+        )
+        compare(f"taf_eipv/log_blend/{label}", actual, expected, atol=1e-12)
 
     report = {
         "status": "passed",

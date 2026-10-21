@@ -47,6 +47,11 @@ enum Command {
         mc_samples: Option<usize>,
         #[arg(long)]
         sources: Option<PathBuf>,
+        /// Save this completed run as a reusable scalar/MO source model.
+        #[arg(long)]
+        save_source_dir: Option<PathBuf>,
+        #[arg(long, default_value = "source")]
+        source_name: String,
         #[arg(long, value_delimiter = ',')]
         objective_weights: Option<Vec<f64>>,
         #[arg(long)]
@@ -264,14 +269,19 @@ fn scalar_config(
     seed: u64,
 ) -> Result<OptimizerConfig> {
     let multi = method.starts_with("mobo_")
-        || method == "taf_ehvi"
+        || ["taf_ehvi", "taf_eipv", "ieipv"].contains(&method)
         || (method == "random" && core::mo_function_spec(function).is_ok());
+    let defaults = if ["taf_eipv", "mobo_taf_eipv", "ieipv"].contains(&method) {
+        OptimizerConfig::taf_eipv()
+    } else {
+        OptimizerConfig::default()
+    };
     let mut config = OptimizerConfig {
         method: method.into(),
         n_init,
         n_iter,
         seed,
-        ..Default::default()
+        ..defaults
     };
     if multi {
         let spec = core::mo_function_spec(function)?;
@@ -367,6 +377,8 @@ async fn main() -> Result<()> {
             n_candidates,
             mc_samples,
             sources,
+            save_source_dir,
+            source_name,
             objective_weights,
             config,
             fixed_hyperparameters,
@@ -398,7 +410,13 @@ async fn main() -> Result<()> {
                 }
                 config
             } else {
-                let n_init = n_init.unwrap_or(5);
+                let n_init = n_init.unwrap_or(
+                    if matches!(method.as_deref(), Some("taf_eipv" | "mobo_taf_eipv")) {
+                        0
+                    } else {
+                        5
+                    },
+                );
                 let n_iter = if let Some(n) = n_evals {
                     ensure!(n >= n_init, "n-evals cannot be below n-init");
                     n - n_init
@@ -432,7 +450,21 @@ async fn main() -> Result<()> {
                 cfg.hyperparameters = h;
             }
             let multi = cfg.n_objectives() > 1;
-            let result = run(cfg, |x| function(&fun, x, multi))?;
+            let source_gp = cfg.gp.clone();
+            let started = std::time::Instant::now();
+            let mut result = run(cfg, |x| function(&fun, x, multi))?;
+            result.metadata["elapsed_seconds"] = json!(started.elapsed().as_secs_f64());
+            if let Some(directory) = save_source_dir {
+                Source {
+                    name: source_name,
+                    gps: fit_gps(&source_gp, &result.x_values, &result.y_values)?,
+                    meta_features: meta_features(&result.x_values, &result.y_values),
+                    x: result.x_values.clone(),
+                    y: result.y_values.clone(),
+                }
+                .save(&directory)?;
+                result.metadata["saved_source_dir"] = json!(directory);
+            }
             write_json(&destination, &result)?;
             output(
                 &json!({"saved":destination,"evaluations":result.y_values.len(),"best":result.best_so_far.last(),"hypervolume":result.hypervolume_history.last()}),
@@ -522,6 +554,32 @@ async fn main() -> Result<()> {
                     &serde_json::from_value::<Vec<f64>>(data["target"].clone())?,
                     data["rho"].as_f64().unwrap_or(1.0)
                 )?),
+                "taf_eipv_sources" => {
+                    let cells = acq::reference_cells(
+                        &serde_json::from_value(data["front"].clone())?,
+                        &serde_json::from_value::<Vec<f64>>(data["reference"].clone())?,
+                        &serde_json::from_value::<Vec<f64>>(data["upper"].clone())?,
+                    )?;
+                    json!(acq::source_improvement(
+                        &serde_json::from_value(data["mean"].clone())?,
+                        &cells
+                    )?)
+                }
+                "taf_eipv_weights" => json!(acq::taf_r_source_weights(
+                    &serde_json::from_value(data["y"].clone())?,
+                    &serde_json::from_value::<Vec<Matrix>>(data["predictions"].clone())?,
+                    data["rho"].as_f64().unwrap_or(1.0),
+                )?),
+                "taf_eipv_blend" => {
+                    let target: Option<Vec<f64>> =
+                        serde_json::from_value(data["target_log"].clone())?;
+                    json!(acq::log_taf_eipv(
+                        target.as_deref(),
+                        &serde_json::from_value(data["source_terms"].clone())?,
+                        &serde_json::from_value::<Vec<f64>>(data["weights"].clone())?,
+                        data["target_weight"].as_f64().unwrap_or(0.75),
+                    )?)
+                }
                 op => bail!("unknown acquisition operation {op}"),
             };
             output(&result)?;
@@ -774,6 +832,7 @@ async fn main() -> Result<()> {
             let mut population = ConboPopulation::new(cfg)?;
             let mut results = vec![];
             for i in 0..n_users {
+                let started = std::time::Instant::now();
                 let mut user = population.new_user(&format!("user_{i:03}"))?;
                 while user.y.len() < n_evals {
                     let x = user.suggest()?;
@@ -781,7 +840,7 @@ async fn main() -> Result<()> {
                     user.observe(&x, y)?;
                 }
                 let report = population.finish_user(&user)?;
-                results.push(json!({"trajectory":user.result(),"replay":report}));
+                results.push(json!({"trajectory":user.result(),"replay":report,"elapsed_seconds":started.elapsed().as_secs_f64()}));
                 population.save(&output_dir)?;
             }
             write_json(&output_dir.join("runs.json"), &results)?;

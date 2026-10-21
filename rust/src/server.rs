@@ -27,6 +27,10 @@ pub struct ServerConfig {
     pub naf_dir: Option<PathBuf>,
     pub naf_name: String,
     pub naf_n_iter: Option<usize>,
+    /// Use the TAF-MOBO protocol, where n_iter is the total evaluation budget.
+    pub taf_mobo: bool,
+    pub taf_mobo_n_init: Option<usize>,
+    pub taf_mobo_raw_samples: usize,
     pub conbo: ConboConfig,
     pub auto_save_dir: Option<PathBuf>,
 }
@@ -39,6 +43,9 @@ impl Default for ServerConfig {
             naf_dir: None,
             naf_name: "best_af".into(),
             naf_n_iter: None,
+            taf_mobo: false,
+            taf_mobo_n_init: None,
+            taf_mobo_raw_samples: 256,
             conbo: ConboConfig::default(),
             auto_save_dir: None,
         }
@@ -54,7 +61,24 @@ impl ServerConfig {
             serde_yaml::from_str(&text)?
         };
         if raw["optimizer"].is_object() {
-            let cfg: Self = serde_json::from_value(raw)?;
+            let mut cfg: Self = serde_json::from_value(raw.clone())?;
+            if cfg.optimizer.method == "mobo_taf_eipv" {
+                cfg.optimizer.method = "taf_eipv".into();
+            }
+            if cfg.optimizer.method == "taf_eipv" && raw["optimizer"].get("target_weight").is_none()
+            {
+                cfg.optimizer.target_weight = 0.75;
+            }
+            if raw.get("taf_mobo").is_none()
+                && ["taf_eipv", "mobo_taf_eipv", "taf_ehvi"]
+                    .contains(&cfg.optimizer.method.as_str())
+            {
+                cfg.taf_mobo = true;
+                cfg.taf_mobo_n_init = Some(cfg.optimizer.n_init);
+                if raw.get("taf_mobo_raw_samples").is_none() {
+                    cfg.taf_mobo_raw_samples = cfg.optimizer.n_candidates;
+                }
+            }
             cfg.validate()?;
             return Ok(cfg);
         }
@@ -68,17 +92,32 @@ impl ServerConfig {
             };
         }
         let explicit: Option<String> = config_field(&raw, "optimizer")?;
+        let method_default: Option<String> = config_field(&raw, "method_default")?;
+        let has_path = |key: &str| raw.get(key).is_some_and(|value| !value.is_null());
+        let transfer_mo = method_default.is_some()
+            || explicit.as_deref().is_some_and(|name| {
+                ["taf_mobo", "taf_eipv", "taf_ehvi", "mobo_taf_eipv"].contains(&name)
+            })
+            || ((has_path("population_dir") || has_path("taf_run_dir"))
+                && cfg.y_range.len() > 1
+                && raw.get("objective_weights_default").is_none()
+                && raw.get("objective_weights").is_none()
+                && (raw.get("v_ref").is_some()
+                    || raw.get("w_ref").is_some()
+                    || has_path("taf_run_dir")));
         let engines = [
-            raw.get("af_dir").is_some(),
-            raw.get("conbo").is_some() || raw.get("memory_dir").is_some(),
-            raw.get("population_dir").is_some(),
-            raw.get("taf_run_dir").is_some(),
+            has_path("af_dir"),
+            raw.get("conbo").is_some() || has_path("memory_dir"),
+            has_path("population_dir"),
+            has_path("taf_run_dir"),
         ];
         ensure!(
             engines.iter().filter(|present| **present).count() <= 1,
             "ambiguous server config: choose exactly one of NAF, ConBO, TAF+, or TAF source settings"
         );
-        let inferred = if engines[0] {
+        let inferred = if transfer_mo {
+            "taf_mobo"
+        } else if engines[0] {
             "naf"
         } else if engines[1] {
             "conbo"
@@ -95,7 +134,17 @@ impl ServerConfig {
             "bo_scratch"
         };
         let name = explicit.as_deref().unwrap_or(inferred);
-        cfg.optimizer.method = name.to_string();
+        cfg.taf_mobo = transfer_mo;
+        cfg.optimizer.method = if transfer_mo {
+            match name {
+                "taf_eipv" | "taf_ehvi" => name.to_string(),
+                "mobo_taf_eipv" => "taf_eipv".to_string(),
+                "taf_mobo" => method_default.unwrap_or_else(|| "taf_eipv".into()),
+                _ => bail!("TAF-MOBO method_default conflicts with optimizer {name:?}"),
+            }
+        } else {
+            name.to_string()
+        };
         let dim: usize = config_field(&raw, "input_dim")?.unwrap_or(2);
         ensure!(dim > 0 && dim <= 10000, "input_dim must be in 1..=10000");
         cfg.optimizer.bounds = vec![(0.0, 1.0); dim];
@@ -131,6 +180,9 @@ impl ServerConfig {
                 if target == "n_iter" && value.is_null() && name == "naf" {
                     continue;
                 }
+                if target == "n_init" && value.is_null() && transfer_mo {
+                    continue;
+                }
                 settings[target] = value.clone();
             }
         }
@@ -161,11 +213,64 @@ impl ServerConfig {
             }
         };
         cfg.naf_name = config_field(&raw, "af_name")?.unwrap_or_else(|| "best_af".into());
-        cfg.naf_dir = config_field(&raw, "af_dir")?;
-        cfg.memory_dir = config_field(&raw, "memory_dir")?;
-        cfg.optimizer.taf_run_dir = config_field(&raw, "taf_run_dir")?;
-        if let Some(population) = config_field::<PathBuf>(&raw, "population_dir")? {
-            cfg.optimizer.taf_run_dir = Some(population);
+        cfg.naf_dir = if has_path("af_dir") {
+            config_field(&raw, "af_dir")?
+        } else {
+            None
+        };
+        cfg.memory_dir = if has_path("memory_dir") {
+            config_field(&raw, "memory_dir")?
+        } else {
+            None
+        };
+        cfg.optimizer.taf_run_dir = if has_path("taf_run_dir") {
+            config_field(&raw, "taf_run_dir")?
+        } else {
+            None
+        };
+        if has_path("population_dir") {
+            cfg.optimizer.taf_run_dir = config_field(&raw, "population_dir")?;
+        }
+
+        if transfer_mo {
+            ensure!(
+                cfg.y_range.len() >= 2,
+                "TAF-MOBO requires at least two objectives"
+            );
+            ensure!(
+                (has_path("population_dir") as u8 + has_path("taf_run_dir") as u8) == 1,
+                "TAF-MOBO requires exactly one of population_dir and taf_run_dir"
+            );
+            cfg.taf_mobo_n_init = match raw.get("n_init_default") {
+                None | Some(Value::Null) => None,
+                Some(value) => {
+                    Some(serde_json::from_value(value.clone()).context("invalid n_init_default")?)
+                }
+            };
+            cfg.taf_mobo_raw_samples = config_field(&raw, "raw_samples_default")?.unwrap_or(256);
+            if let Some(restarts) = config_field::<usize>(&raw, "num_restarts_default")? {
+                ensure!(restarts > 0, "num_restarts_default must be positive");
+            }
+            let budget: usize = config_field(&raw, "n_iter_default")?.unwrap_or(10);
+            cfg.optimizer.n_init =
+                cfg.taf_mobo_n_init
+                    .unwrap_or(if cfg.optimizer.method == "taf_ehvi" {
+                        1
+                    } else {
+                        0
+                    });
+            ensure!(
+                budget > 0 && cfg.optimizer.n_init <= budget,
+                "TAF-MOBO needs n_iter>=1 and 0<=n_init<=n_iter"
+            );
+            cfg.optimizer.n_iter = budget - cfg.optimizer.n_init;
+            if cfg.optimizer.method == "taf_eipv" {
+                cfg.optimizer.target_weight = 0.75;
+                cfg.optimizer.source_only_warmup_iters = 0;
+            }
+            if cfg.optimizer.method == "taf_ehvi" {
+                cfg.optimizer.n_candidates = cfg.taf_mobo_raw_samples;
+            }
         }
 
         if name == "mobo" {
@@ -311,6 +416,21 @@ impl ServerConfig {
             self.y_range.len() == 1 || self.y_range.len() == objectives,
             "y_range count must match objectives"
         );
+        if self.taf_mobo {
+            validate_taf_mobo(&self.optimizer)?;
+            ensure!(
+                self.y_range.len() >= 2 && self.y_range.len() == objectives,
+                "TAF-MOBO requires one range per objective and at least two objectives"
+            );
+            ensure!(
+                self.taf_mobo_raw_samples > 0,
+                "raw_samples must be positive"
+            );
+            ensure!(
+                self.auto_save_dir.is_none(),
+                "TAF-MOBO source populations are read-only; disable auto_save_dir"
+            );
+        }
         Ok(())
     }
 }
@@ -322,6 +442,36 @@ fn config_field<T: serde::de::DeserializeOwned>(raw: &Value, key: &str) -> Resul
                 .with_context(|| format!("invalid server config field {key}"))
         })
         .transpose()
+}
+
+fn validate_taf_mobo(config: &OptimizerConfig) -> Result<()> {
+    ensure!(
+        ["taf_eipv", "taf_ehvi"].contains(&config.method.as_str()),
+        "TAF-MOBO method must be taf_eipv or taf_ehvi"
+    );
+    ensure!(
+        config.taf_run_dir.is_some(),
+        "TAF-MOBO requires source population_dir/taf_run_dir"
+    );
+    ensure!(
+        config.method != "taf_ehvi" || config.n_init >= 1,
+        "taf_ehvi needs n_init>=1"
+    );
+    let modes: &[&str] = if config.method == "taf_eipv" {
+        &["taf_r", "uniform"]
+    } else {
+        &["taf_r", "taf_r_pareto", "taf_m"]
+    };
+    ensure!(
+        modes.contains(&config.taf_weight_mode.as_str()),
+        "weight_mode is unsupported for {}",
+        config.method
+    );
+    ensure!(
+        config.rho.is_finite() && config.rho > 0.0,
+        "rho must be positive and finite"
+    );
+    Ok(())
 }
 
 enum Engine {
@@ -349,10 +499,64 @@ impl Session {
         );
         runtime.validate()?;
         let mut cfg = runtime.clone();
-        let method = payload["optimizer"]
-            .as_str()
+        let requested: Option<String> = config_field(payload, "optimizer")?;
+        let taf_mobo = cfg.taf_mobo
+            || requested.as_deref().is_some_and(|m| {
+                ["taf_mobo", "taf_eipv", "taf_ehvi", "mobo_taf_eipv"].contains(&m)
+            });
+        let mut method = requested
+            .as_deref()
+            .filter(|m| *m != "taf_mobo")
             .unwrap_or(&cfg.optimizer.method)
             .to_string();
+        if taf_mobo {
+            method = config_field(payload, "method")?.unwrap_or(method);
+            if method == "mobo_taf_eipv" {
+                method = "taf_eipv".into();
+            }
+            let total = config_field(payload, "n_iter")?.unwrap_or(
+                cfg.optimizer
+                    .n_init
+                    .checked_add(cfg.optimizer.n_iter)
+                    .context("evaluation budget overflow")?,
+            );
+            let default_init = cfg
+                .taf_mobo_n_init
+                .or_else(|| {
+                    if !cfg.taf_mobo && method == cfg.optimizer.method {
+                        Some(cfg.optimizer.n_init)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(if method == "taf_ehvi" { 1 } else { 0 });
+            let n_init: usize = config_field(payload, "n_init")?.unwrap_or(default_init);
+            ensure!(
+                total > 0 && n_init <= total,
+                "TAF-MOBO needs n_iter>=1 and 0<=n_init<=n_iter"
+            );
+            cfg.optimizer.n_init = n_init;
+            cfg.optimizer.n_iter = total - n_init;
+            if method == "taf_eipv" && cfg.optimizer.method != "taf_eipv" {
+                cfg.optimizer.target_weight = 0.75;
+            }
+            if method == "taf_ehvi" {
+                cfg.optimizer.n_candidates =
+                    config_field(payload, "raw_samples")?.unwrap_or(cfg.taf_mobo_raw_samples);
+            }
+            if let Some(restarts) = config_field::<usize>(payload, "num_restarts")? {
+                ensure!(restarts > 0, "num_restarts must be positive");
+            }
+            if let Some(mode) = config_field::<String>(payload, "weight_mode")? {
+                cfg.optimizer.taf_weight_mode = mode;
+            }
+            cfg.taf_mobo = true;
+        } else {
+            ensure!(
+                payload.get("method").is_none(),
+                "method override is only supported by TAF-MOBO sessions"
+            );
+        }
         cfg.optimizer.method = method.clone();
         let name = payload["task_name"]
             .as_str()
@@ -371,11 +575,17 @@ impl Session {
             "objective_weights",
             "source_only_warmup_iters",
         ] {
+            if taf_mobo && ["n_init", "n_iter"].contains(&key) {
+                continue;
+            }
             if let Some(value) = payload.get(key) {
                 let mut settings = serde_json::to_value(&cfg.optimizer)?;
                 settings[key] = value.clone();
                 cfg.optimizer = serde_json::from_value(settings)?;
             }
+        }
+        if taf_mobo {
+            validate_taf_mobo(&cfg.optimizer)?;
         }
         let engine = match method.as_str() {
             "conbo" => {
@@ -423,7 +633,16 @@ impl Session {
                     cfg.optimizer.objective_weights.clone(),
                 )?))
             }
-            _ => Engine::Standard(Box::new(SequentialOptimizer::new(cfg.optimizer.clone())?)),
+            _ => {
+                let optimizer = SequentialOptimizer::new(cfg.optimizer.clone())?;
+                if taf_mobo {
+                    ensure!(
+                        !optimizer.sources.is_empty(),
+                        "No sources found for TAF-MOBO"
+                    );
+                }
+                Engine::Standard(Box::new(optimizer))
+            }
         };
         let n = cfg.optimizer.n_objectives();
         let limit = match &engine {
@@ -480,6 +699,26 @@ impl Session {
             Engine::Naf(o) => o.suggest()?,
         };
         self.pending = Some(x.clone());
+        if self.config.taf_mobo {
+            let weights = if self.count() < self.config.optimizer.n_init {
+                Value::Null
+            } else {
+                match &self.engine {
+                    Engine::Standard(o) => json!(o.last_source_weights),
+                    _ => Value::Null,
+                }
+            };
+            let phase = if self.count() < self.config.optimizer.n_init {
+                "random"
+            } else if self.count() == 0 {
+                "sources"
+            } else {
+                "taf"
+            };
+            return Ok(
+                json!({"type":"suggest","optimizer":"taf_mobo","method":self.config.optimizer.method,"x":x,"iteration":self.count(),"n_observations":self.count(),"n_iter":self.budget(),"n_objectives":self.config.optimizer.n_objectives(),"phase":phase,"source_weights":weights}),
+            );
+        }
         Ok(
             json!({"type":"suggest","optimizer":self.config.optimizer.method,"x":x,"iteration":self.count(),"n_observations":self.count(),"phase":if self.count()<self.config.optimizer.n_init{"init"}else{"bo"}}),
         )
@@ -488,11 +727,31 @@ impl Session {
         let mut payload = match &mut self.engine {
             Engine::Standard(o) => {
                 if let Some(dir) = &self.config.auto_save_dir {
-                    if !o.y_obs.is_empty() {
+                    if !self.config.taf_mobo && !o.y_obs.is_empty() {
                         o.save_sources(dir, &self.name)?;
                     }
                 }
-                serde_json::to_value(o.result()?)?
+                let result = o.result()?;
+                let mut payload = serde_json::to_value(&result)?;
+                if self.config.taf_mobo {
+                    let indices: Vec<_> = result
+                        .pareto_front
+                        .iter()
+                        .filter_map(|row| o.y_obs.iter().position(|y| y == row))
+                        .collect();
+                    payload["pareto_x"] = json!(
+                        indices
+                            .iter()
+                            .map(|index| o.x_obs[*index].clone())
+                            .collect::<Vec<_>>()
+                    );
+                    payload["pareto_y"] = json!(result.pareto_front);
+                    payload["hv_history"] = json!(result.hypervolume_history);
+                    payload["v_ref"] = json!(o.config.reference_point);
+                    payload["sources"] =
+                        json!(o.sources.iter().map(|s| s.name.clone()).collect::<Vec<_>>());
+                }
+                payload
             }
             Engine::Conbo { population, user } => {
                 let mut result = user.result();
@@ -539,7 +798,14 @@ impl Session {
             }
         }
         payload["type"] = json!(kind);
-        payload["optimizer"] = json!(self.config.optimizer.method);
+        payload["optimizer"] = json!(if self.config.taf_mobo {
+            "taf_mobo"
+        } else {
+            self.config.optimizer.method.as_str()
+        });
+        if self.config.taf_mobo {
+            payload["method"] = json!(self.config.optimizer.method);
+        }
         payload["total_observations"] = json!(self.count());
         self.closed = true;
         Ok(payload)
@@ -600,15 +866,33 @@ impl Session {
                     self.ask()
                 }
             }
-            "status" => Ok(
-                json!({"type":"status","n_observations":self.count(),"n_evaluations":self.budget(),"has_pending":self.pending.is_some()}),
-            ),
+            "status" => {
+                if self.config.taf_mobo {
+                    if let Engine::Standard(o) = &self.engine {
+                        let hv = crate::acquisition::hypervolume(
+                            &o.y_obs,
+                            o.config.reference_point.as_ref().unwrap(),
+                        )?;
+                        return Ok(
+                            json!({"type":"status","optimizer":"taf_mobo","method":self.config.optimizer.method,"n_observations":self.count(),"n_iter":self.budget(),"has_pending":self.pending.is_some(),"hypervolume":hv,"n_sources":o.sources.len()}),
+                        );
+                    }
+                }
+                Ok(
+                    json!({"type":"status","n_observations":self.count(),"n_evaluations":self.budget(),"has_pending":self.pending.is_some()}),
+                )
+            }
             "stop" => {
                 let store = match payload.get("store") {
                     Some(value) => value.as_bool().context("store must be boolean")?,
                     None => false,
                 };
-                self.finish("stopped", store)
+                let reason: Option<String> = config_field(payload, "reason")?;
+                let mut stopped = self.finish("stopped", store)?;
+                if self.config.taf_mobo {
+                    stopped["reason"] = json!(reason.unwrap_or_else(|| "client_stop".into()));
+                }
+                Ok(stopped)
             }
             "start" => bail!("session already started"),
             other => bail!("unsupported message type {other:?}"),

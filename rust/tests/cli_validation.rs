@@ -177,11 +177,43 @@ fn scalar_and_multi_objective_benchmark_commands_produce_valid_results() {
                 "--fixed-hyperparameters",
                 "--output",
             ])
-            .arg(&multi),
+            .arg(&multi)
+            .arg("--save-source-dir")
+            .arg(directory.path().join("sources"))
+            .args(["--source-name", "earlier_user"]),
     );
     let run = trajectory(&multi, 3, 3, 2);
     let expected = core::multi_objective("oka2", &run.x_values).unwrap();
     assert_eq!(run.y_values, expected);
+    let sources = directory.path().join("sources");
+    assert!(sources.join("gp_states/earlier_user.json").exists());
+    let transfer = directory.path().join("transfer.json");
+    success(
+        cli()
+            .args([
+                "benchmark",
+                "--method",
+                "taf_eipv",
+                "--function",
+                "oka2",
+                "--n-evals",
+                "3",
+                "--n-candidates",
+                "8",
+                "--fixed-hyperparameters",
+                "--sources",
+            ])
+            .arg(&sources)
+            .arg("--output")
+            .arg(&transfer),
+    );
+    let run = trajectory(&transfer, 3, 3, 2);
+    assert_eq!(
+        run.y_values,
+        core::multi_objective("oka2", &run.x_values).unwrap()
+    );
+    assert_eq!(run.metadata["sources"], json!(["earlier_user"]));
+    assert!(run.metadata["elapsed_seconds"].as_f64().unwrap() >= 0.);
 }
 
 #[test]

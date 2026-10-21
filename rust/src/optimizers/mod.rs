@@ -13,6 +13,7 @@ use anyhow::ensure;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::path::PathBuf;
+use std::time::Instant;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -27,9 +28,12 @@ pub struct OptimizerConfig {
     pub mc_samples: usize,
     pub refine: bool,
     pub gp: GpConfig,
+    #[serde(alias = "v_ref")]
     pub reference_point: Option<Vec<f64>>,
+    #[serde(alias = "w_ref")]
     pub upper_reference: Option<Vec<f64>>,
     pub taf_run_dir: Option<PathBuf>,
+    #[serde(alias = "weight_mode")]
     pub taf_weight_mode: String,
     pub rho: f64,
     pub target_weight: f64,
@@ -38,10 +42,20 @@ pub struct OptimizerConfig {
     pub source_improvement_temperature: f64,
     pub objective_weights: Option<Vec<f64>>,
     pub decay: bool,
+    #[serde(alias = "d1")]
     pub decay_start_iter: usize,
+    #[serde(alias = "d2")]
     pub decay_rate: f64,
     pub model: String,
     pub hyperparameters: String,
+    /// Target acquisition for native TAF-EIPV and its `ieipv` baseline.
+    pub acquisition: String,
+    pub eipv_form: String,
+    /// Screen a CEIPV pool with IEIPV, then rescore its best candidates.
+    pub n_rescore: Option<usize>,
+    pub n_hyper_samples: usize,
+    pub slice_burn_in: usize,
+    pub slice_thin: usize,
 }
 
 impl Default for OptimizerConfig {
@@ -75,6 +89,12 @@ impl Default for OptimizerConfig {
             decay_rate: 0.3,
             model: "independent".into(),
             hyperparameters: "map".into(),
+            acquisition: "ieipv".into(),
+            eipv_form: "exact".into(),
+            n_rescore: None,
+            n_hyper_samples: 10,
+            slice_burn_in: 10,
+            slice_thin: 2,
         }
     }
 }
@@ -99,9 +119,23 @@ pub const METHODS: &[&str] = &[
     "taf_ehvi",
     "taf_plus",
     "taf",
+    "taf_eipv",
+    "mobo_taf_eipv",
+    "ieipv",
 ];
 
 impl OptimizerConfig {
+    /// TAF-EIPV method defaults, preserving defaults of older methods.
+    /// Set both objective-space references before constructing the optimizer.
+    pub fn taf_eipv() -> Self {
+        Self {
+            method: "taf_eipv".into(),
+            n_init: 0,
+            n_iter: 10,
+            target_weight: 0.75,
+            ..Self::default()
+        }
+    }
     pub fn validate(&self) -> Result<()> {
         self.gp.validate()?;
         ensure!(
@@ -116,6 +150,10 @@ impl OptimizerConfig {
                     .iter()
                     .all(|(a, b)| a.is_finite() && b.is_finite() && b > a && (b - a).is_finite()),
             "bounds must be finite increasing intervals with a finite span"
+        );
+        ensure!(
+            self.method == "random" || self.bounds.len() <= 32,
+            "native acquisition search supports at most 32 input dimensions"
         );
         ensure!(
             ["independent", "mt", "slf"].contains(&self.model.as_str()),
@@ -150,7 +188,8 @@ impl OptimizerConfig {
             "decay rate must be in [0,1]"
         );
         ensure!(
-            ["taf_m", "taf_r", "taf_r_pareto", "poe"].contains(&self.taf_weight_mode.as_str()),
+            ["taf_m", "taf_r", "taf_r_pareto", "poe", "uniform"]
+                .contains(&self.taf_weight_mode.as_str()),
             "unknown transfer weight mode"
         );
         ensure!(
@@ -203,11 +242,56 @@ impl OptimizerConfig {
                 "TAF+ supports only poe or taf_r weighting"
             );
         }
+        ensure!(
+            self.taf_weight_mode != "uniform" || self.is_taf_eipv(),
+            "uniform transfer weights apply only to TAF-EIPV"
+        );
+        if self.is_native_eipv() {
+            ensure!(
+                self.upper_reference.is_some(),
+                "native EIPV requires an upper_reference objective-space corner"
+            );
+            ensure!(
+                ["ieipv", "ceipv"].contains(&self.acquisition.as_str()),
+                "EIPV acquisition must be ieipv or ceipv"
+            );
+            ensure!(
+                ["exact", "paper"].contains(&self.eipv_form.as_str()),
+                "eipv_form must be exact or paper"
+            );
+            ensure!(
+                self.n_rescore.is_none_or(|n| n > 0),
+                "n_rescore must be positive when supplied"
+            );
+            ensure!(
+                self.n_hyper_samples > 0 && self.slice_thin > 0,
+                "hyperparameter sample count and thinning must be positive"
+            );
+            ensure!(
+                self.gp.noise > 0.0,
+                "multi-output GP noise must be positive"
+            );
+            if self.is_taf_eipv() {
+                ensure!(
+                    ["taf_r", "uniform"].contains(&self.taf_weight_mode.as_str()),
+                    "TAF-EIPV supports taf_r or uniform weights"
+                );
+                ensure!(
+                    self.target_weight > 0.0,
+                    "TAF-EIPV target_weight must be positive"
+                );
+                ensure!(
+                    !self.decay || self.decay_rate > 0.0,
+                    "enabled TAF-EIPV decay must have a positive rate"
+                );
+            }
+        }
         Ok(())
     }
     pub fn is_multi(&self) -> bool {
         self.method.starts_with("mobo_")
             || self.method == "taf_ehvi"
+            || self.is_native_eipv()
             || (self.method == "random" && self.reference_point.is_some())
     }
     pub fn is_plus(&self) -> bool {
@@ -224,6 +308,12 @@ impl OptimizerConfig {
     }
     pub fn is_transfer(&self) -> bool {
         self.method.contains("taf") || self.is_plus()
+    }
+    pub fn is_taf_eipv(&self) -> bool {
+        matches!(self.method.as_str(), "taf_eipv" | "mobo_taf_eipv")
+    }
+    pub fn is_native_eipv(&self) -> bool {
+        self.is_taf_eipv() || self.method == "ieipv"
     }
 }
 
@@ -257,6 +347,17 @@ pub struct SequentialOptimizer {
     pub last_source_weights: Vec<f64>,
     pending: Option<Point>,
     bo_suggestions: usize,
+    suggestion_seconds: Vec<f64>,
+    eipv_gp: Option<acq::MultiOutputGP>,
+    eipv_chain_state: Option<Vec<f64>>,
+}
+
+struct NativeEipvAcquisition {
+    models: Vec<acq::MultiOutputGP>,
+    target_cells: (Matrix, Matrix),
+    target_terms: Option<acq::CeipvTerms>,
+    source_cells: Vec<(Matrix, Matrix)>,
+    source_weights: Vec<f64>,
 }
 
 impl SequentialOptimizer {
@@ -273,7 +374,7 @@ impl SequentialOptimizer {
         } else {
             (vec![], vec![])
         };
-        if config.is_multi() {
+        if config.is_multi() && !config.is_native_eipv() {
             let reference = config.reference_point.as_ref().unwrap();
             sources.retain(|s| {
                 let accepted =
@@ -297,6 +398,9 @@ impl SequentialOptimizer {
             last_source_weights: vec![],
             pending: None,
             bo_suggestions: 0,
+            suggestion_seconds: vec![],
+            eipv_gp: None,
+            eipv_chain_state: None,
         })
     }
     pub fn budget(&self) -> usize {
@@ -321,7 +425,7 @@ impl SequentialOptimizer {
         if !self.config.decay {
             return 1.0;
         }
-        let iteration = if self.config.is_plus() {
+        let iteration = if self.config.is_plus() || self.config.is_taf_eipv() {
             self.y_obs.len().saturating_add(1)
         } else {
             self.bo_suggestions.saturating_add(1)
@@ -336,6 +440,7 @@ impl SequentialOptimizer {
             "observe the pending suggestion before asking again"
         );
         ensure!(!self.is_finished(), "no evaluations remaining");
+        let started = Instant::now();
         let seed = self
             .config
             .seed
@@ -353,7 +458,9 @@ impl SequentialOptimizer {
                             .collect()
                     })
                     .collect();
-            if self.y_obs.is_empty() {
+            if self.config.is_native_eipv() {
+                self.suggest_eipv(&pool, seed)?
+            } else if self.y_obs.is_empty() {
                 if self.sources.is_empty() {
                     if self.config.is_plus() {
                         self.config
@@ -409,6 +516,8 @@ impl SequentialOptimizer {
             self.bo_suggestions = self.bo_suggestions.saturating_add(1);
         }
         self.pending = Some(point.clone());
+        self.suggestion_seconds
+            .push(started.elapsed().as_secs_f64());
         Ok(point)
     }
     /// Record one experiment. Invalid data leave both observations and pending state unchanged.
@@ -471,9 +580,254 @@ impl SequentialOptimizer {
             best_so_far,
             hypervolume_history: history,
             pareto_front: front,
-            metadata: json!({"backend":"native_rust","config":self.config,"seed":self.config.seed,"total_evaluations":self.y_obs.len(),"n_init":self.config.n_init,"n_iter":self.config.n_iter,"history":"one entry per evaluation","source_weights":self.last_source_weights,"warnings":self.warnings}),
+            metadata: json!({"backend":"native_rust","upstream_revision":crate::UPSTREAM_REVISION,"config":self.config,"seed":self.config.seed,"total_evaluations":self.y_obs.len(),"n_init":self.config.n_init,"n_iter":self.config.n_iter,"history":"one entry per evaluation","sources":self.sources.iter().map(|s|&s.name).collect::<Vec<_>>(),"source_weights":self.last_source_weights,"last_source_weights":self.last_source_weights,"target_weight":self.config.target_weight,"weight_mode":self.config.taf_weight_mode,"warnings":self.warnings,"suggestion_seconds":self.suggestion_seconds,"total_suggestion_seconds":self.suggestion_seconds.iter().sum::<f64>()}),
         })
     }
+
+    fn eipv_source_weights(&self) -> Result<Vec<f64>> {
+        if !self.config.is_taf_eipv() || self.sources.is_empty() {
+            return Ok(vec![]);
+        }
+        let mut weights = if self.config.taf_weight_mode == "uniform" || self.y_obs.len() < 2 {
+            vec![0.75; self.sources.len()]
+        } else {
+            let predictions = self
+                .sources
+                .iter()
+                .map(|s| predict_gps(&s.gps, &self.x_obs).map(|p| p.0))
+                .collect::<Result<Vec<_>>>()?;
+            acq::taf_r_source_weights(&self.y_obs, &predictions, self.config.rho)?
+        };
+        let decay = self.population_decay();
+        for weight in &mut weights {
+            *weight *= decay;
+        }
+        Ok(weights)
+    }
+
+    fn suggest_eipv(&mut self, pool: &Matrix, seed: u64) -> Result<Point> {
+        ensure!(
+            !self.y_obs.is_empty() || (self.config.is_taf_eipv() && !self.sources.is_empty()),
+            "cannot suggest without observations or sources; bootstrap the target first"
+        );
+        let reference = self
+            .config
+            .reference_point
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("EIPV requires reference_point"))?;
+        let upper = self
+            .config
+            .upper_reference
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("EIPV requires upper_reference"))?;
+        let form = if self.config.eipv_form == "paper" {
+            acq::EipvForm::Paper
+        } else {
+            acq::EipvForm::Exact
+        };
+        let target_cells = acq::reference_cells(&self.y_obs, reference, upper)?;
+        let source_weights = self.eipv_source_weights()?;
+        ensure!(
+            !self.y_obs.is_empty() || source_weights.iter().any(|w| *w > 0.0),
+            "source-only TAF-EIPV needs a source with positive weight after decay"
+        );
+        let source_cells = if self.config.is_taf_eipv() && source_weights.iter().any(|w| *w > 0.0) {
+            self.sources
+                .iter()
+                .map(|s| {
+                    let means = predict_gps(&s.gps, &self.x_obs)?.0;
+                    acq::reference_cells(&means, reference, upper)
+                })
+                .collect::<Result<Vec<_>>>()?
+        } else {
+            vec![]
+        };
+        let mut fitted = None;
+        let mut chain_state = self.eipv_chain_state.clone();
+        let models = if self.y_obs.is_empty() {
+            vec![]
+        } else {
+            let warm = self
+                .eipv_gp
+                .as_ref()
+                .filter(|gp| gp.mode == self.config.model);
+            let mut gp = match warm {
+                Some(model) => model.clone(),
+                None => acq::MultiOutputGP::new(&self.config.model, self.config.gp.noise)?,
+            };
+            gp.noise = self.config.gp.noise;
+            gp.optimize_hyperparameters = self.config.gp.optimize_hyperparameters;
+            gp.optimize_noise = self.config.gp.optimize_noise;
+            gp.max_iterations = self.config.gp.optimizer_maxiter;
+            gp.optimizer_restarts = if warm.is_some() {
+                1
+            } else {
+                self.config.gp.optimizer_restarts.max(1)
+            };
+            gp.seed = self.config.seed;
+            gp.fit(&self.x_obs, &self.y_obs)?;
+            let models = if self.config.hyperparameters == "slice" {
+                let sampler = chain_state
+                    .as_ref()
+                    .and_then(|p| gp.with_hyperparameters(p).ok())
+                    .unwrap_or_else(|| gp.clone());
+                let samples = sampler.sample_hyperparameters(
+                    self.config.n_hyper_samples,
+                    self.config.slice_burn_in,
+                    self.config.slice_thin,
+                    seed ^ 0x454950565f534c49,
+                )?;
+                chain_state = samples.last().cloned();
+                samples
+                    .iter()
+                    .map(|p| gp.with_hyperparameters(p))
+                    .collect::<Result<Vec<_>>>()?
+            } else {
+                vec![gp.clone()]
+            };
+            fitted = Some(gp);
+            models
+        };
+        let target_terms = if !models.is_empty() && self.config.acquisition == "ceipv" {
+            Some(acq::ceipv_terms(
+                &acq::pareto_front(&self.y_obs)?,
+                reference,
+                upper,
+                form,
+                &[0.1, 0.25, 0.5],
+            )?)
+        } else {
+            None
+        };
+        let acquisition = NativeEipvAcquisition {
+            models,
+            target_cells,
+            target_terms,
+            source_cells,
+            source_weights,
+        };
+        let cheap_screen = self.config.acquisition == "ceipv" && self.config.n_rescore.is_some();
+        let screen = if cheap_screen {
+            "ieipv"
+        } else {
+            self.config.acquisition.as_str()
+        };
+        let initial = self.eipv_scores(pool, &acquisition, screen)?;
+        let mut order = (0..pool.len()).collect::<Vec<_>>();
+        order.sort_by(|&a, &b| initial[b].total_cmp(&initial[a]).then(a.cmp(&b)));
+        if cheap_screen {
+            order.truncate(self.config.n_rescore.unwrap().min(order.len()));
+        }
+        let points: Matrix = order.iter().map(|&i| pool[i].clone()).collect();
+        let values = if cheap_screen {
+            self.eipv_scores(&points, &acquisition, &self.config.acquisition)?
+        } else {
+            order.iter().map(|&i| initial[i]).collect()
+        };
+        let index = argmax(&values)?;
+        let mut best = points[index].clone();
+        let mut best_value = values[index];
+        if self.config.refine {
+            let mut starts = (0..points.len()).collect::<Vec<_>>();
+            starts.sort_by(|&a, &b| values[b].total_cmp(&values[a]).then(a.cmp(&b)));
+            for &i in starts.iter().take(self.config.n_starts) {
+                let point = refine(&points[i], &self.config.bounds, |x| {
+                    self.eipv_scores(x, &acquisition, &self.config.acquisition)
+                })?;
+                let value =
+                    self.eipv_scores(&vec![point.clone()], &acquisition, &self.config.acquisition)?
+                        [0];
+                if value > best_value {
+                    best = point;
+                    best_value = value;
+                }
+            }
+        }
+        // Publish fitted state only after scoring/search succeeds.
+        self.eipv_gp = fitted;
+        self.eipv_chain_state = chain_state;
+        self.last_source_weights = acquisition.source_weights;
+        Ok(best)
+    }
+
+    fn eipv_scores(
+        &self,
+        x: &Matrix,
+        acquisition: &NativeEipvAcquisition,
+        kind: &str,
+    ) -> Result<Vec<f64>> {
+        let form = if self.config.eipv_form == "paper" {
+            acq::EipvForm::Paper
+        } else {
+            acq::EipvForm::Exact
+        };
+        let target = if acquisition.models.is_empty() {
+            None
+        } else {
+            let predictions = acquisition
+                .models
+                .iter()
+                .map(|gp| gp.predict(x))
+                .collect::<Result<Vec<_>>>()?;
+            let mut values = Vec::with_capacity(x.len());
+            for i in 0..x.len() {
+                let logs = predictions
+                    .iter()
+                    .map(|(mean, cov)| {
+                        if kind == "ieipv" {
+                            Ok(acq::ieipv(
+                                &mean[i],
+                                &cov[i],
+                                &acquisition.target_cells.0,
+                                &acquisition.target_cells.1,
+                                form,
+                            )?
+                            .ln())
+                        } else {
+                            acq::log_ceipv(
+                                &mean[i],
+                                &cov[i],
+                                acquisition
+                                    .target_terms
+                                    .as_ref()
+                                    .ok_or_else(|| anyhow::anyhow!("CEIPV terms missing"))?,
+                            )
+                        }
+                    })
+                    .collect::<Result<Vec<f64>>>()?;
+                let maximum = logs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                values.push(if maximum == f64::NEG_INFINITY {
+                    acq::LOG_FLOOR
+                } else {
+                    (maximum + logs.iter().map(|v| (v - maximum).exp()).sum::<f64>().ln()
+                        - (logs.len() as f64).ln())
+                    .max(acq::LOG_FLOOR)
+                });
+            }
+            Some(values)
+        };
+        if acquisition.source_weights.iter().all(|w| *w == 0.0) {
+            if let Some(values) = target {
+                return Ok(values);
+            }
+        }
+        let source_terms = self
+            .sources
+            .iter()
+            .zip(&acquisition.source_cells)
+            .map(|(s, cells)| {
+                let means = predict_gps(&s.gps, x)?.0;
+                acq::source_improvement(&means, cells)
+            })
+            .collect::<Result<Matrix>>()?;
+        acq::log_taf_eipv(
+            target.as_deref(),
+            &source_terms,
+            &acquisition.source_weights,
+            self.config.target_weight,
+        )
+    }
+
     fn compute_source_weights(&self) -> Result<Vec<f64>> {
         if self.sources.is_empty() {
             return Ok(vec![]);

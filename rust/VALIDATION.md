@@ -1,7 +1,7 @@
 # Validation record
 
 Validated on **2026-10-21**, Windows x86-64 MSVC, against upstream
-`a22d861401a157e2379bdb44355323819ea05414` plus the bug fixes described in
+`3ceda2d34225d2f1601fc57815cd821fbc78f37d` plus the bug fixes described in
 [PORTING.md](PORTING.md#corrections-made-during-the-port).
 
 ## Reproduce
@@ -34,21 +34,24 @@ cross-language checks and for exporting existing Python policies.
 
 ## Evidence
 
-- **Rust regression suite:** core objectives and task families, scalar and
+- **Rust regression suite:** **117 tests passed**, plus one compiled documentation
+  example. Coverage includes core objectives and task families, scalar and
   correlated GP behavior, acquisition geometry and sampling, optimizers, source
   interchange, population replay, neural gradients/training/resume, CLI workflows
   and real WebSocket connections. Tests run without Python or external datasets.
-- **Cross-language comparison:** 68 numerical groups, **2,639 scalar values**
+- **Cross-language comparison:** 78 numerical groups, **2,763 scalar values**
   compared with the current Python implementation. This includes seven scalar
   functions, three MetaBO normalization formulas, three multi-objective functions,
   16 scalar GP configurations (RBF/Matérn, constant/nonconstant targets,
   standardization on/off, zero/positive noise), joint covariance, EI, hypervolume
-  in two through four dimensions, and meta-feature weights.
+  in two through four dimensions, meta-feature weights, TAF-EIPV source gains,
+  pooled ranking weights and its stable log blend.
 - **Trained policy interchange:** the archived Python Branin policy was exported
   and imported successfully. All **48 recorded logits** passed the export's
   float32/float64 tolerances; maximum absolute difference was
   `0.0003397758346181945` (absolute tolerance `0.0005`, relative `0.00002`).
-- **Python regressions:** **542 tests passed**, including the new GP/kernel and
+- **Python regressions:** **568 tests passed**, including the new upstream
+  TAF-EIPV/server tests, GP/kernel and
   neural checkpoint/input validation cases. The suite emitted 68 existing
   numerical/benchmark warnings and had no failures. Python version: 3.14.6.
 - **Static checks:** Rust formatting and Clippy with warnings denied, Python Ruff
@@ -65,6 +68,11 @@ after a deliberately failed population save.
 The CLI tests execute the student comparison, scalar/MO optimization, split →
 source training → inspection → transfer, NAF training → resume → normalized
 benchmark, policy import/rejection and a persisted two-user ConBO sequence.
+
+The stock Python `taf_mobo_server.yaml` was also exercised through a real native
+WebSocket session with its archived ten-user population: source-only TAF-EIPV
+suggestion, three-objective observation, completed budget, source weights/names
+and finite hypervolume all passed. The archived source files remained unchanged.
 
 ## Limits
 
@@ -84,3 +92,6 @@ every numerical input or experimental setup is correct. In particular:
 
 The locked dependency graph and declared minimum Rust version make the build
 constraints reviewable. Keep `Cargo.lock` when reproducing this record.
+
+The complete crate also passed `cargo +1.85.1 check --locked --all-targets` on
+the declared minimum Rust toolchain. The primary local toolchain was Rust 1.99.0.

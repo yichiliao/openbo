@@ -6,9 +6,11 @@
 mod mobo;
 mod multi_output;
 mod sampling;
+mod taf_eipv;
 pub use mobo::*;
 pub use multi_output::*;
 pub use sampling::*;
+pub use taf_eipv::*;
 
 use crate::{Matrix, Result};
 use anyhow::{bail, ensure};

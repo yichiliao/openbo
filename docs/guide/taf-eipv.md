@@ -125,6 +125,23 @@ uv run python scripts/plot_taf_plus_results.py --test-id demo --metric hv
 
 A setting takes about 4.5 minutes for TAF-EIPV and 1.5 for IEIPV on one thread.
 
+### Computation time
+
+| Method | Backbone | Per suggestion | Per user (20 evaluations) | Per range (10 users) |
+| --- | --- | --- | --- | --- |
+| TAF-EIPV | OpenBO MOBO (IEIPV) | 1.3 s | 26 s | 4-5 min |
+| IEIPV, no sources | OpenBO MOBO | 0.4 s | 8 s | 1.3-1.5 min |
+| TAF-EHVI | BoTorch qLogNEHVI | 32 s | 10.3 min | 102-103 min |
+| qLogNEHVI, no sources | BoTorch | 23 s | 7.4 min | 73-75 min |
+
+Measured in this benchmark (4 inputs, 3 objectives, 10 sources) on a laptop CPU
+(Intel Core i7-10510U, 4 cores and 8 threads), with 8 runs in parallel and one
+thread each (`OMP_NUM_THREADS=1`), so a single run on an idle machine is faster.
+A suggestion includes fitting the new user's GPs and searching the acquisition:
+for TAF-EIPV and IEIPV a 1024-point Sobol pool plus L-BFGS-B, for TAF-EHVI and
+qLogNEHVI 256 raw samples and 4 restarts. In a user study the time per
+suggestion is what a participant waits between designs.
+
 ## Results
 
 On the TAF+ Simulation 2 users (4 similarity ranges, 10 new users each, 20

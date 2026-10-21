@@ -130,12 +130,14 @@ uv run python scripts/plot_taf_plus_results.py --test-id demo
 | `random` | uniform random designs |
 | `taf_ehvi` | [TAF-EHVI](taf-ehvi.md) with the population's users as sources; optimizes hypervolume and never sees `alpha`; 1 random start, then 19 steps |
 | `mobo` | plain qLogNEHVI with the same start and settings (TAF-EHVI without sources) |
+| `taf_eipv` | [TAF-EIPV](taf-eipv.md) with the population's users as sources; optimizes hypervolume and never sees `alpha`; starts from the sources alone, 20 steps |
+| `ieipv` | OpenBO's plain IEIPV, 1 random start (TAF-EIPV without sources) |
 
-`--metric hv` scores every method on the noise-free hypervolume of the designs evaluated so far, against the user's true Pareto front (traced by maximizing 861 weighted sums; the first plot computes it, about 25 s per user, and caches it in `plots/pareto_hypervolume.json`). TAF-EHVI and qLogNEHVI take about 100 and 75 minutes per setting on one thread; run one process per setting with `OMP_NUM_THREADS=1`.
+`--metric hv` scores every method on the noise-free hypervolume of the designs evaluated so far, against the user's true Pareto front (traced by maximizing 861 weighted sums; the first plot computes it, about 25 s per user, and caches it in `plots/pareto_hypervolume.json`). TAF-EHVI and qLogNEHVI take about 100 and 75 minutes per setting on one thread, TAF-EIPV and IEIPV about 4.5 and 1.5; run one process per setting with `OMP_NUM_THREADS=1`.
 
 Building a population is the slowest step; it is cached on disk and reused. Results go to `test_results/taf_plus/` ([Results folders](results.md#results-folder-convention)). The archived
 run and its findings are in [Archived results](results.md#archived-benchmark-results): transfer gives an excellent first
-design, but TAF+ rarely improves after it. TAF-EHVI beats plain qLogNEHVI early (to about evaluation 10 for ranges up to 0.2), and both end with 2.5 to 3.6 times less hypervolume regret than TAF+ by evaluation 20.
+design, but TAF+ rarely improves after it. On hypervolume (which TAF+ does not optimize), TAF-EIPV is best at almost every evaluation for ranges up to 0.2, and TAF-EHVI beats plain qLogNEHVI early. On the weighted sum TAF+ keeps its edge for similar users.
 
 ## Run through the server
 

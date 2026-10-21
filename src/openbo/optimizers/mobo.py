@@ -235,7 +235,10 @@ class MOBOSequentialOptimizer:
         if self.x_obs.shape[0] == 0:
             raise ValueError("Cannot suggest without observations. Call bootstrap() first.")
         screen, acquisition = self._log_acquisition(self._posterior_models())
+        return self._search(screen, acquisition)
 
+    def _search(self, screen: AcquisitionFn, acquisition: AcquisitionFn) -> NDArray[np.float64]:
+        """Score a fresh Sobol pool with ``screen``, then polish the best starts on ``acquisition``."""
         pool = _sobol_in_bounds(self.lower, self.upper, self.config.n_candidates, self.rng)
         scores = screen(pool)
         if self.config.n_rescore and self.config.acquisition == "ceipv":

@@ -2,8 +2,10 @@
 
 [← Guide index](README.md) · [README](../../README.md)
 
-TAF-EHVI carries TAF's idea, reusing models of earlier tasks or users, over to
-multi-objective BO. It was contributed by Mark Colley (PR #1, 2026-10-21) and is
+TAF-EHVI is one of OpenBO's two implementations of **TAF-MOBO**, the transfer
+acquisition function for multi-objective BO (the other, recommended, is
+[TAF-EIPV](taf-eipv.md)). It carries TAF's idea, reusing models of earlier
+tasks or users, over to multi-objective BO. It was contributed by Mark Colley (PR #1, 2026-10-21) and is
 OpenBO's own method: there is no paper for it yet. It builds on BoTorch's
 qLogNEHVI ([Multi-objective BO](mobo.md)), not on OpenBO's NumPy CEIPV/IEIPV.
 
@@ -141,7 +143,11 @@ evaluations, one seed), with full tables in
 - **Against TAF+:** TAF+'s first design (the population's best guess) is
   unmatched early, and TAF-EHVI needs about 10 evaluations to catch up; by
   evaluation 20 TAF-EHVI and qLogNEHVI have 2.5 to 3.6 times less hypervolume
-  regret than TAF+, which stalls after its first design.
+  regret than TAF+. TAF+ optimizes the weighted sum, not hypervolume, so this
+  measures how much of the front its designs happen to cover.
+- **Against TAF-EIPV** ([TAF-EIPV](taf-eipv.md)), OpenBO's other multi-objective
+  TAF, whose source pull fades as the user explores: TAF-EIPV is clearly better on
+  hypervolume for ranges up to 0.2, and about 25 times faster per step.
 
 ## Limitations and open work
 

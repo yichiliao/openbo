@@ -16,7 +16,8 @@ dependencies = [
     "pyyaml>=6.0.3",
     "scipy>=1.17.1",
     "threadpoolctl>=3.6.0",
-    "torch>=2.11.0",
+    "torch>=2.11.0; python_version < '3.15'",
+    "torch>=2.14.1; python_version >= '3.15'",
     "tqdm>=4.67.3",
     "websockets>=16.0",
 ]
@@ -27,6 +28,34 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "openbo"
+
+# Stable PyTorch 3.15 wheels are published on PyTorch's own index, not PyPI.
+# Keep existing interpreter versions on their established PyPI resolution.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "python_version >= '3.15'" }]
+
+[tool.uv]
+# CPython 3.15 wheel floors, scoped so the tested 3.11-3.14 lock stays intact.
+constraint-dependencies = [
+    "numpy>=2.5.4; python_version >= '3.15'",
+    "scipy>=1.18.1; python_version >= '3.15'",
+    "matplotlib>=3.11.2; python_version >= '3.15'",
+    "pandas>=3.0.6; python_version >= '3.15'",
+    "cffi>=2.1.1; python_version >= '3.15'",
+    "contourpy>=1.4.0; python_version >= '3.15'",
+    "kiwisolver>=1.5.1; python_version >= '3.15'",
+    "librt>=0.16.0; python_version >= '3.15'",
+    "markupsafe>=3.0.4; python_version >= '3.15'",
+    "pillow>=13.0.0; python_version >= '3.15'",
+    "scikit-learn>=1.9.1; python_version >= '3.15'",
+    "pyzmq>=27.2.0; python_version >= '3.15'",
+    "websockets>=17.3; python_version >= '3.15'",
+]
 
 [tool.pytest.ini_options]
 # `scripts/` is not a package; a few tests import from it (`from scripts.… import …`).

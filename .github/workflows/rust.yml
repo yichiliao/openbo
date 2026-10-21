@@ -41,12 +41,15 @@ jobs:
       - run: rustup toolchain install 1.85.1 --profile minimal --no-self-update
       - run: cargo +1.85.1 check --locked --all-targets
   python-parity:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.14", "3.15"]
+        include:
+          - {os: ubuntu-latest, python: "3.14"}
+          - {os: ubuntu-latest, python: "3.15"}
+          - {os: windows-latest, python: "3.15"}
     env:
       OMP_NUM_THREADS: "1"
       MKL_NUM_THREADS: "1"

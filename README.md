@@ -19,6 +19,11 @@ uv run pytest tests    # optional: the full test suite takes a few minutes
 
 Run commands with `uv run ...` (or `source .venv/bin/activate` first), from the repository root: default config and output paths are relative to it.
 
+For Python 3.15, use a current release of uv and run `uv sync --python 3.15`.
+The configuration selects compatible numerical packages and PyTorch CPU wheels
+from its [official package repository](https://pytorch.org/blog/pytorch-2-14-release-blog/).
+Python 3.11–3.14 keep their existing locked dependency versions.
+
 ## A first run
 
 ```python

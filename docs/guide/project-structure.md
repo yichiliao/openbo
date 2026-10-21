@@ -7,6 +7,7 @@
 - `docs/plans/` - design notes and implementation plans (`mobo.md`, `conbo.md`, `taf_plus.md`, `naf.md`).
 - `relevant_papers/references.bib` - BibTeX for the papers OpenBO implements directly (PDFs are not redistributed; follow the DOIs).
 - `pyproject.toml` - dependencies, build config, and project metadata.
+- [`rust/`](../../rust/README.md) - independent native Rust library and CLI, examples, regression tests, portable model tools, and coverage/validation notes. It has its own `Cargo.toml` and locked dependencies.
 - `configs/` - YAML configs and reusable artifacts.
   - `benchmark.yaml` - benchmark config placeholder (not read by any script).
   - `methods/*.yaml` - method-level config placeholders (not read by any script).

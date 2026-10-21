@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import copy
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -38,7 +39,24 @@ class GPScratch:
     y_train_norm: NDArray[np.float64] | None = field(default=None, init=False)
 
     def fit(self, x: NDArray[np.float64], y: NDArray[np.float64]) -> None:
-        """Fit GP by caching train data and solving kernel system."""
+        """Fit observations, preserving the previous model if any stage fails.
+
+        Fitting replaces the derived arrays instead of editing existing ones,
+        so a shallow candidate can safely share the old arrays until commit.
+        """
+        candidate = copy(self)
+        candidate._fit_in_place(x, y)
+        caches = (candidate.y_train_norm, candidate.k_train, candidate.l_chol, candidate.alpha)
+        if (
+            not np.isfinite(candidate.y_mean)
+            or not np.isfinite(candidate.y_std) or candidate.y_std <= 0
+            or any(cache is None or not np.all(np.isfinite(cache)) for cache in caches)
+        ):
+            raise ValueError("GP fit produced non-finite state; rescale inputs or targets.")
+        self.__dict__ = candidate.__dict__
+
+    def _fit_in_place(self, x: NDArray[np.float64], y: NDArray[np.float64]) -> None:
+        """Build a candidate's training state before :meth:`fit` commits it."""
         x_train = np.asarray(x, dtype=np.float64)
         y_train = np.asarray(y, dtype=np.float64)
         if x_train.ndim != 2 or x_train.shape[1] == 0:
@@ -176,7 +194,10 @@ class GPScratch:
         log_ls = np.log(np.asarray(self.lengthscale, dtype=np.float64))
         parts = [log_ls, np.array([np.log(self.variance)], dtype=np.float64)]
         if self.optimize_noise:
-            parts.append(np.array([np.log(self.noise)], dtype=np.float64))
+            # A noiseless initial model is valid. Start the log-noise optimizer
+            # from a finite value; bounds clipping supplies its search floor.
+            log_noise = np.log(max(self.noise, np.finfo(np.float64).tiny))
+            parts.append(np.array([log_noise], dtype=np.float64))
         return np.concatenate(parts)
 
     def _unpack_hyperparameters(self, theta: NDArray[np.float64]) -> None:
@@ -206,7 +227,11 @@ class GPScratch:
         else:
             noise = float(self.noise)
 
-        if variance <= 0 or noise <= 0 or np.any(lengthscale <= 0):
+        if (
+            not np.isfinite(variance) or variance <= 0
+            or not np.isfinite(noise) or noise < 0
+            or not np.all(np.isfinite(lengthscale)) or np.any(lengthscale <= 0)
+        ):
             return float("inf")
 
         if self.kernel_type == "rbf":
@@ -232,6 +257,12 @@ class GPScratch:
 
     def _optimize_hyperparameters(self) -> None:
         theta0 = self._pack_hyperparameters()
+        # Compare every candidate with the user's actual starting model, before
+        # projecting into the optimizer's search box. A valid out-of-box model
+        # may be better than any point permitted by those bounds.
+        initial_fun = self._negative_log_marginal_likelihood(theta0)
+        best_fun = initial_fun if np.isfinite(initial_fun) else float("inf")
+        best_x: NDArray[np.float64] | None = None
         d = self.x_train.shape[1]
         bounds = [(-6.0, 4.0)] * d + [(-8.0, 6.0)]
         if self.optimize_noise:
@@ -246,10 +277,6 @@ class GPScratch:
         for _ in range(n_random):
             starts.append(rng.uniform(lower, upper))
 
-        best_fun: float | None = None
-        best_x: NDArray[np.float64] | None = None
-        best_success = False
-
         for start in starts:
             start_clipped = np.clip(np.asarray(start, dtype=np.float64), lower, upper)
             result = minimize(
@@ -259,13 +286,15 @@ class GPScratch:
                 bounds=bounds,
                 options={"maxiter": self.optimizer_maxiter},
             )
-            if result.success and np.isfinite(result.fun):
-                if best_fun is None or result.fun < best_fun:
-                    best_fun = float(result.fun)
-                    best_x = np.asarray(result.x, dtype=np.float64)
-                    best_success = True
+            candidate = np.asarray(result.x, dtype=np.float64)
+            if candidate.shape != theta0.shape or not np.all(np.isfinite(candidate)):
+                continue
+            # Iteration-limit exits can still improve the likelihood. Recompute
+            # it at the returned parameters instead of trusting the status flag.
+            candidate_fun = self._negative_log_marginal_likelihood(candidate)
+            if np.isfinite(candidate_fun) and candidate_fun < best_fun:
+                best_fun = float(candidate_fun)
+                best_x = candidate
 
-        if best_success and best_x is not None:
+        if best_x is not None:
             self._unpack_hyperparameters(best_x)
-        else:
-            self._unpack_hyperparameters(theta0)

@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use OpenBO in your research, please cite it as below, and cite the paper behind each method you use (see relevant_papers/references.bib)."
+type: software
+title: "OpenBO: An Open-Source Library for Bayesian Optimization"
+authors:
+  - given-names: Yi-Chi
+    family-names: Liao
+  - given-names: Mark
+    family-names: Colley
+  - given-names: Chih-Hao
+    family-names: Hsu
+  - given-names: Kuan-Lin
+    family-names: Lee
+repository-code: "https://github.com/yichiliao/openbo"
+url: "https://www.csie.ntu.edu.tw/~yichi/openbo-website/index.html"
+license: MIT
+version: 0.1.0
+date-released: 2026-10-19

@@ -20,6 +20,7 @@ import json
 import time
 from collections.abc import Callable, Sequence
 from concurrent.futures import ProcessPoolExecutor
+from copy import deepcopy
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any, Protocol
@@ -219,11 +220,17 @@ class BOEpisode:
         """Evaluate candidate ``index`` of the last observation; return the reward."""
         if self.candidates is None:
             raise RuntimeError("Call observation() before step().")
+        if not 0 <= index < self.candidates.shape[0]:
+            raise ValueError("Candidate index is out of bounds.")
         x = self.candidates[index][None, :]
         y = float(np.asarray(self.task(x), dtype=np.float64).reshape(-1)[0])
-        self.x_obs = np.vstack([self.x_obs, x])
-        self.y_obs = np.append(self.y_obs, y)
-        self.gp.fit(self.x_obs, self.y_obs)
+        if not np.isfinite(y):
+            raise ValueError("The task must return a finite objective value.")
+        x_obs = np.vstack([self.x_obs, x])
+        y_obs = np.append(self.y_obs, y)
+        gp = deepcopy(self.gp)
+        gp.fit(x_obs, y_obs)
+        self.x_obs, self.y_obs, self.gp = x_obs, y_obs, gp
         self.candidates = None
         return log_regret_reward(self.regret)
 
@@ -309,9 +316,9 @@ class NAFFamily:
 
     def config(self, **overrides: object) -> NAFConfig:
         """A ``NAFConfig`` with this family's dimension and candidate set; other settings by keyword."""
-        settings: dict[str, object] = dict(
-            dim=self.dim, points_per_dim=self.points_per_dim, n_local=self.n_local
-        )
+        settings: dict[str, object] = {
+            "dim": self.dim, "points_per_dim": self.points_per_dim, "n_local": self.n_local
+        }
         settings.update(overrides)
         return NAFConfig(**settings)  # type: ignore[arg-type]
 
@@ -555,17 +562,18 @@ def train_naf(
                 assert task_sampler is not None
                 tasks = list(task_sampler(n_episodes, int(rng.integers(2**31))))
             rollout = _collect(config, af, tasks, gp_hyperparameters, iteration, executor)
-            stats = _ppo_update(config, af, value_net, optimizer, rollout, rng)
-
             returns = np.asarray(rollout.rewards).reshape(-1, config.budget).sum(axis=1)
             mean_return = float(returns.mean())
+            if mean_return > best_return:
+                best_return, best_iteration = mean_return, iteration
+                # These returns evaluate the policy before the PPO update.
+                best_af.load_state_dict(af.state_dict())
+            stats = _ppo_update(config, af, value_net, optimizer, rollout, rng)
+
             history.mean_return.append(mean_return)
             history.mean_final_log_regret.append(float(np.mean(np.log10(np.maximum(rollout.final_regrets, 1e-20)))))
             history.seconds.append(time.perf_counter() - start)
             history.stats.append(stats)
-            if mean_return > best_return:
-                best_return, best_iteration = mean_return, iteration
-                best_af.load_state_dict(af.state_dict())
             history.best_iteration = best_iteration
             if checkpoint_dir is not None:
                 save_training(checkpoint_dir, config, gp_hyperparameters, history)
@@ -802,9 +810,17 @@ class NAFSequentialOptimizer:
         y = np.asarray(y, dtype=np.float64).reshape(-1)
         if x.shape != (y.shape[0], self.x_obs.shape[1]):
             raise ValueError("x must have shape (n, d) and y shape (n,).")
-        self.x_obs = np.vstack([self.x_obs, x])
-        self.y_obs = np.append(self.y_obs, y)
-        self.gp.fit(self.x_obs, self.y_obs)
+        if x.shape[0] == 0 or not np.all(np.isfinite(x)) or not np.all(np.isfinite(y)):
+            raise ValueError("Observations must contain at least one point and finite values.")
+        if np.any(x < 0.0) or np.any(x > 1.0):
+            raise ValueError("Observation inputs must lie in [0, 1].")
+        if self.t + y.shape[0] > self.budget:
+            raise ValueError(f"Observations exceed the budget of {self.budget} evaluations.")
+        x_obs = np.vstack([self.x_obs, x])
+        y_obs = np.append(self.y_obs, y)
+        gp = deepcopy(self.gp)
+        gp.fit(x_obs, y_obs)
+        self.x_obs, self.y_obs, self.gp = x_obs, y_obs, gp
 
 
 def run_naf(

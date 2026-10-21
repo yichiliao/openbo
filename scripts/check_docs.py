@@ -18,10 +18,10 @@ NOTEBOOKS = sorted((ROOT / "notebooks").glob("0[1-4]_*.ipynb"))
 
 def anchors(path: Path) -> set[str]:
     """GitHub-style heading IDs, including suffixes for repeated headings."""
-    text = re.sub(r"```.*?```", "", path.read_text(encoding="utf-8"), flags=re.S)
+    text = re.sub(r"```.*?```", "", path.read_text(encoding="utf-8"), flags=re.DOTALL)
     found = set(re.findall(r'(?:id|name)=["\']([^"\']+)', text))
     seen: dict[str, int] = {}
-    for heading in re.findall(r"^#{1,6}\s+(.+?)\s*#*\s*$", text, flags=re.M):
+    for heading in re.findall(r"^#{1,6}\s+(.+?)\s*#*\s*$", text, flags=re.MULTILINE):
         heading = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", heading)
         slug = re.sub(r"[^\w\- ]", "", html.unescape(heading).strip().lower()).replace(" ", "-")
         count = seen.get(slug, 0)
@@ -34,14 +34,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--execute-notebooks", action="store_true", help="Execute each lesson in a fresh process.")
     args = parser.parse_args()
-    documents = [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md"))]
+    documents = [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md")), *sorted((ROOT / "rust").glob("*.md"))]
     if (ROOT / "CONTRIBUTING.md").exists():
         documents.insert(1, ROOT / "CONTRIBUTING.md")
     errors = []
     for path in documents:
         source = path.read_text(encoding="utf-8")
         # Ignore code fences, which can contain illustrative Markdown syntax.
-        source = re.sub(r"```.*?```", "", source, flags=re.S)
+        source = re.sub(r"```.*?```", "", source, flags=re.DOTALL)
         for raw in re.findall(r"!?\[[^\]]*\]\(([^)]+)\)", source):
             target = urlsplit(raw.strip().split()[0].strip("<>"))
             if target.scheme or target.netloc:

@@ -1,0 +1,8 @@
+optimizer:
+  method: bo_scratch
+  bounds: [[0.0, 1.0], [0.0, 1.0]]
+  n_init: 3
+  n_iter: 5
+  n_candidates: 128
+  seed: 0
+y_range: [[-400.0, 1.0]]

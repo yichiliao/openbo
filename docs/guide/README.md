@@ -21,6 +21,7 @@ The command reference for OpenBO: every script, flag, server protocol and archiv
 **Integration**
 
 - [WebSocket servers](servers.md): starting each server, config files, the JSON protocol, per-server differences, client loops and fake clients.
+- [Native Rust port](../../rust/README.md): a Python-free library, student quickstart, consolidated CLI, training, source/policy interchange, and validation.
 
 **Reference**
 

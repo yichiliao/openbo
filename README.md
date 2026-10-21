@@ -2,6 +2,8 @@
 
 OpenBO is a research and teaching Python library for Bayesian optimization (BO): standard BO (from scratch in NumPy, and with BoTorch), transfer and meta-BO (TAF, TAF+, continual BO, MetaBO-style neural acquisition functions) and multi-objective BO, including multi-objective transfer (TAF-EHVI). Every optimizer has a Python ask/tell interface and benchmark scripts, and all but TAF-EHVI have a WebSocket server for human-in-the-loop studies.
 
+The independent [native Rust port](rust/README.md) is in `rust/`, with a student quickstart, library and CLI, source/policy interchange, and a [validation record](rust/VALIDATION.md). It runs without Python or PyTorch; see the [porting notes](rust/PORTING.md) for numerical backend differences.
+
 **Website: [https://www.csie.ntu.edu.tw/~yichi/openbo-website/](https://www.csie.ntu.edu.tw/~yichi/openbo-website/index.html)**, with the overview, [how to call each method](https://www.csie.ntu.edu.tw/~yichi/openbo-website/methods.html), [interactive demos](https://www.csie.ntu.edu.tw/~yichi/openbo-website/demos.html), [benchmark results](https://www.csie.ntu.edu.tw/~yichi/openbo-website/benchmarks.html) and [how to cite](https://www.csie.ntu.edu.tw/~yichi/openbo-website/publications.html).
 
 ## Installation

@@ -44,6 +44,8 @@ STYLES = {
     "random": ("Random", "#eda100", ":"),
     "taf_ehvi": ("TAF-EHVI", "#8a4fc8", "-"),
     "mobo": ("qLogNEHVI", "#52514e", "--"),
+    "taf_eipv": ("TAF-EIPV", "#c2185b", "-"),
+    "ieipv": ("IEIPV", "#9e9d99", ":"),
 }
 SIM2 = ("sim2_r005", "sim2_r01", "sim2_r02", "sim2_r03")
 SIM2_LABELS = {"sim2_r005": "range 0.05", "sim2_r01": "range 0.1", "sim2_r02": "range 0.2", "sim2_r03": "range 0.3"}

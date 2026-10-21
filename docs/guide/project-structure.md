@@ -4,7 +4,7 @@
 
 - `README.md` - short overview, installation and links.
 - `docs/guide/` - the user guide: one file per workflow and method.
-- `docs/plans/` - design notes and implementation plans (`mobo.md`, `conbo.md`, `taf_plus.md`, `naf.md`).
+- `docs/plans/` - design notes and implementation plans (`mobo.md`, `conbo.md`, `taf_plus.md`, `naf.md`, `taf_eipv.md`).
 - `relevant_papers/references.bib` - BibTeX for the papers OpenBO implements directly (PDFs are not redistributed; follow the DOIs).
 - `pyproject.toml` - dependencies, build config, and project metadata.
 - [`rust/`](../../rust/README.md) - independent native Rust library and CLI, examples, regression tests, portable model tools, and coverage/validation notes. It has its own `Cargo.toml` and locked dependencies.
@@ -16,9 +16,9 @@
 - `src/openbo/` - main package (`import openbo`; distribution name is `open-bo`).
   - `test_functions/` - synthetic objectives, transforms, family/task variants and registry utilities; multi-objective problems (`multi_objective.py`), ConBO's simulated users (`families.py`), TAF+'s sphere users (`taf_plus_users.py`) and MetaBO's Branin, Goldstein-Price and Hartmann-3 families for NAF (`metabo_families.py`).
   - `models/` - GP implementations and kernels (the NumPy GP in `gp_scratch.py`), including the multi-output GP in `multi_output_gp.py`, a slice sampler in `slice_sampling.py`, and ConBO's MC-dropout population BNN (`bnn.py`) and generative replay (`conbo_replay.py`).
-  - `acquisition/` - EI, TAF, EIPV/CEIPV for MOBO (`mobo.py`), ConBO's mixed population/user EI (`conbo.py`), the multi-objective TAF-EHVI terms and weights (`taf_mo_ehvi.py`), TAF+ with objective weights and decay (`taf_plus.py`; see [`docs/plans/taf_plus.md`](../plans/taf_plus.md)), and the neural AF with its features and candidate set (`naf.py`).
-  - `optimizers/` - random search (`random_search.py`), standard BO, TAF; MOBO in `mobo.py` and the qLogNEHVI baseline in `mobo_botorch.py`; multi-objective TAF (TAF-EHVI) in `mobo_taf.py`; continual BO across a sequence of users in `conbo.py`; TAF+ (transfer from earlier users with objective weights and decay) in `bo_taf_plus.py`, with its workflow steps (objective weights from ratings, decay search) in `taf_plus_workflow.py`; NAF / MetaBO (fixed family GPs, RL episodes, PPO training, ask/tell optimizer) in `naf.py`.
-  - `server_optimizers/` - WebSocket session adapters for generic BO, TAF, MOBO, ConBO, TAF+ and NAF.
+  - `acquisition/` - EI, TAF, EIPV/CEIPV for MOBO (`mobo.py`), ConBO's mixed population/user EI (`conbo.py`), the multi-objective TAF-EHVI terms and weights (`taf_mo_ehvi.py`), TAF-EIPV's source term, weights and blend (`taf_eipv.py`), TAF+ with objective weights and decay (`taf_plus.py`; see [`docs/plans/taf_plus.md`](../plans/taf_plus.md)), and the neural AF with its features and candidate set (`naf.py`).
+  - `optimizers/` - random search (`random_search.py`), standard BO, TAF; MOBO in `mobo.py` and the qLogNEHVI baseline in `mobo_botorch.py`; multi-objective TAF on BoTorch (TAF-EHVI) in `mobo_taf.py` and on OpenBO's own MOBO (TAF-EIPV) in `mobo_taf_eipv.py`; continual BO across a sequence of users in `conbo.py`; TAF+ (transfer from earlier users with objective weights and decay) in `bo_taf_plus.py`, with its workflow steps (objective weights from ratings, decay search) in `taf_plus_workflow.py`; NAF / MetaBO (fixed family GPs, RL episodes, PPO training, ask/tell optimizer) in `naf.py`.
+  - `server_optimizers/` - WebSocket session adapters for generic BO, TAF, MOBO, ConBO, TAF+, NAF and TAF-MOBO (`taf_mobo_server.py`: TAF-EIPV or TAF-EHVI).
   - `benchmarks/` - `run_simple_benchmark` method dispatcher, Pareto/hypervolume utilities (`hypervolume.py`), the MOBO method dispatcher (`mobo_runner.py`), the ConBO user-sequence dispatcher (`conbo_runner.py`), the TAF+ simulation runner (`taf_plus_runner.py`), the MetaBO benchmark runner (`naf_runner.py`), and placeholder metrics/plotting/seeds modules.
 - `scripts/` - local benchmark/training/plot entrypoints.
   - `run_benchmark.py` - run one method on one function; optional `--noisy` and 2D x-location plot.
@@ -53,6 +53,8 @@
   - `run_taf_plus_fake_client.py` - one simulated sphere user for TAF+ server smoke tests (`--url`, `--range`, `--user-seed`, `--alpha`, `--n-iter`).
   - `run_naf_server.py` - NAF (MetaBO) server (one session per task, trained AF from `af_dir`).
   - `run_naf_fake_client.py` - one simulated task of a MetaBO family for NAF server smoke tests (`--url`, `--family`, `--task-seed`, `--n-iter`).
+  - `run_taf_mobo_server.py` - TAF-MOBO server (one session per new user, TAF-EIPV or TAF-EHVI, fixed sources from `population_dir` or `taf_run_dir`).
+  - `run_taf_mobo_fake_client.py` - one simulated sphere user for TAF-MOBO server smoke tests (`--url`, `--method`, `--range`, `--user-seed`, `--n-iter`).
   - `run_fake_client.py` - fake Branin client; optional 2D x-location plotting.
   - `run_manual_family_train_clients.py` - one session per train variant against scratch server.
   - `run_manual_family_test_clients.py` - one session per test variant against TAF server; optional saved JSON per session.

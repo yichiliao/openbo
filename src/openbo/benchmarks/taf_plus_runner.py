@@ -24,6 +24,12 @@ user experiences, and of the best design so far, ``regret``):
   the TAF-EHVI defaults (objective-wise TAF-R weights, no warmup, no decay).
 - ``mobo``: plain qLogNEHVI with the same starts and settings, TAF-EHVI
   without sources.
+- ``taf_eipv``: TAF-EIPV (``optimizers/mobo_taf_eipv.py``), the original TAF on
+  OpenBO's NumPy MOBO (IEIPV on independent GPs), with the population's users
+  as sources. It starts from the sources alone (no random start) and never
+  sees ``alpha``.
+- ``ieipv``: OpenBO's plain IEIPV with ``mobo_init`` random starts, TAF-EIPV
+  without sources.
 
 ``hypervolume_curve`` and ``pareto_hypervolume`` score any run on the
 noise-free hypervolume of the designs evaluated so far, against the user's
@@ -63,13 +69,14 @@ from openbo.optimizers.bo_taf_plus import (
 from openbo.benchmarks.hypervolume import hypervolume
 from openbo.optimizers.mobo_botorch import MOBoTorchConfig, compute_hypervolume, run_mobo_botorch
 from openbo.optimizers.mobo_taf import MOTAFConfig, MOTAFSequentialOptimizer, write_population_sources
+from openbo.optimizers.mobo_taf_eipv import TAFEIPVConfig, TAFEIPVSequentialOptimizer
 from openbo.test_functions.taf_plus_users import (
     SPHERE_INPUT_DIM,
     SphereUser,
     make_sphere_users,
 )
 
-TAF_PLUS_METHODS = ("taf_plus", "taf", "bo", "random", "taf_ehvi", "mobo")
+TAF_PLUS_METHODS = ("taf_plus", "taf", "bo", "random", "taf_ehvi", "mobo", "taf_eipv", "ieipv")
 
 # Shift and scale range per simulation (App. B.3-B.4).
 TAF_PLUS_SIMULATIONS = {
@@ -110,6 +117,8 @@ class SimulationSettings:
     bo_init: int = 5
     n_candidates: int = 256
     mobo_init: int = 1
+    # Upper corner of the objective box for EIPV (the users' values stay below 1.2).
+    w_ref: tuple[float, float, float] = (1.2, 1.2, 1.2)
 
 
 def simulation_users(sim: str, seed: int, settings: SimulationSettings) -> tuple[list[SphereUser], list[SphereUser]]:
@@ -212,6 +221,30 @@ def _run_mobo_user(
         return optimizer.x_obs, optimizer.y_obs
 
 
+def _run_eipv_user(
+    user: SphereUser,
+    rng: np.random.Generator,
+    seed: int,
+    settings: SimulationSettings,
+    population: TAFPlusPopulation | None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Run OpenBO's IEIPV on one new user, with TAF-EIPV sources when ``population`` is given."""
+    n_init = 0 if population is not None else settings.mobo_init
+    config = TAFEIPVConfig(
+        bounds=[(0.0, 1.0)] * SPHERE_INPUT_DIM,
+        v_ref=list(settings.v_ref),
+        w_ref=list(settings.w_ref),
+        n_init=n_init,
+        seed=seed,
+    )
+    optimizer = TAFEIPVSequentialOptimizer(config, population)
+    optimizer.bootstrap(lambda x: user.observe(x, rng))
+    for _ in range(settings.n_evals - n_init):
+        x = optimizer.suggest()
+        optimizer.observe(x, user.observe(x, rng))
+    return optimizer.x_obs, optimizer.y_obs
+
+
 def pareto_hypervolume(user: SphereUser, v_ref: tuple[float, ...], step: float = 0.025) -> float:
     """Hypervolume of the user's noise-free Pareto front above ``v_ref``.
 
@@ -294,6 +327,8 @@ def run_taf_plus_method(
                 raise RuntimeError("BO evaluated the objective outside its recorded observations.")
         elif method in ("taf_ehvi", "mobo"):
             x_obs, y_obs = _run_mobo_user(user, rng, user_seed, settings, source_dir)
+        elif method in ("taf_eipv", "ieipv"):
+            x_obs, y_obs = _run_eipv_user(user, rng, user_seed, settings, population if method == "taf_eipv" else None)
         else:
             x_obs = np.random.default_rng(user_seed).random((settings.n_evals, SPHERE_INPUT_DIM))
             y_obs = user.observe(x_obs, rng)

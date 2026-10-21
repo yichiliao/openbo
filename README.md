@@ -1,6 +1,6 @@
 # OpenBO
 
-OpenBO is a research and teaching Python library for Bayesian optimization (BO): standard BO (from scratch in NumPy, and with BoTorch), transfer and meta-BO (TAF, TAF+, continual BO, MetaBO-style neural acquisition functions) and multi-objective BO, including multi-objective transfer (TAF-EHVI). Every optimizer has a Python ask/tell interface and benchmark scripts, and all but TAF-EHVI have a WebSocket server for human-in-the-loop studies.
+OpenBO is a research and teaching Python library for Bayesian optimization (BO): standard BO (from scratch in NumPy, and with BoTorch), transfer and meta-BO (TAF, TAF+, continual BO, MetaBO-style neural acquisition functions) and multi-objective BO, including multi-objective transfer (TAF-MOBO). Every optimizer has a Python ask/tell interface, benchmark scripts and a WebSocket server for human-in-the-loop studies.
 
 The independent [native Rust port](rust/README.md) is in `rust/`, with a student quickstart, library and CLI, source/policy interchange, and a [validation record](rust/VALIDATION.md). It runs without Python or PyTorch; see the [porting notes](rust/PORTING.md) for numerical backend differences.
 
@@ -40,7 +40,8 @@ The full command reference is in [`docs/guide/`](docs/guide/README.md):
 | Families of related tasks, train/test splits | [families.md](docs/guide/families.md) |
 | TAF (transfer acquisition function) | [taf.md](docs/guide/taf.md) |
 | Multi-objective BO | [mobo.md](docs/guide/mobo.md) |
-| TAF-EHVI (transfer for multi-objective BO) | [taf-ehvi.md](docs/guide/taf-ehvi.md) |
+| TAF-MOBO (transfer for multi-objective BO): TAF-EIPV, on OpenBO's MOBO (recommended) | [taf-eipv.md](docs/guide/taf-eipv.md) |
+| TAF-MOBO: TAF-EHVI, on BoTorch | [taf-ehvi.md](docs/guide/taf-ehvi.md) |
 | Continual BO (ConBO) | [conbo.md](docs/guide/conbo.md) |
 | TAF+ | [taf-plus.md](docs/guide/taf-plus.md) |
 | NAF (MetaBO) | [naf.md](docs/guide/naf.md) |
@@ -56,7 +57,7 @@ OpenBO is licensed under the MIT License; see [LICENSE](LICENSE). If you use Ope
 
 ```bibtex
 @software{liao2026openbo,
-  author    = {Yi-Chi Liao and Mark Colley and Chih-Hao Hsu and Kuan-Lin Lee},
+  author    = {Yi-Chi Liao and Mark Colley and George Mo and Chih-Hao Hsu and Kuan-Lin Lee},
   title     = {{OpenBO}: An Open-Source Library for Bayesian Optimization},
   year      = {2026},
   publisher = {GitHub},

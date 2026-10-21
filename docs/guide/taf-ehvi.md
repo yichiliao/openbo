@@ -2,8 +2,10 @@
 
 [← Guide index](README.md) · [README](../../README.md)
 
-TAF-EHVI carries TAF's idea, reusing models of earlier tasks or users, over to
-multi-objective BO. It was contributed by Mark Colley (PR #1, 2026-10-21) and is
+TAF-EHVI is one of OpenBO's two implementations of **TAF-MOBO**, the transfer
+acquisition function for multi-objective BO (the other, recommended, is
+[TAF-EIPV](taf-eipv.md)). It carries TAF's idea, reusing models of earlier
+tasks or users, over to multi-objective BO. It was contributed by Mark Colley (PR #1, 2026-10-21) and is
 OpenBO's own method: there is no paper for it yet. It builds on BoTorch's
 qLogNEHVI ([Multi-objective BO](mobo.md)), not on OpenBO's NumPy CEIPV/IEIPV.
 
@@ -129,6 +131,23 @@ Both start from one random point, then run 19 steps with 256 raw samples and 4
 restarts; a setting takes about 100 (TAF-EHVI) and 75 (qLogNEHVI) minutes on one
 thread.
 
+### Computation time
+
+| Method | Backbone | Per suggestion | Per user (20 evaluations) | Per range (10 users) |
+| --- | --- | --- | --- | --- |
+| TAF-EIPV | OpenBO MOBO (IEIPV) | 1.3 s | 26 s | 4-5 min |
+| IEIPV, no sources | OpenBO MOBO | 0.4 s | 8 s | 1.3-1.5 min |
+| TAF-EHVI | BoTorch qLogNEHVI | 32 s | 10.3 min | 102-103 min |
+| qLogNEHVI, no sources | BoTorch | 23 s | 7.4 min | 73-75 min |
+
+Measured in this benchmark (4 inputs, 3 objectives, 10 sources) on a laptop CPU
+(Intel Core i7-10510U, 4 cores and 8 threads), with 8 runs in parallel and one
+thread each (`OMP_NUM_THREADS=1`), so a single run on an idle machine is faster.
+A suggestion includes fitting the new user's GPs and searching the acquisition:
+for TAF-EIPV and IEIPV a 1024-point Sobol pool plus L-BFGS-B, for TAF-EHVI and
+qLogNEHVI 256 raw samples and 4 restarts. In a user study the time per
+suggestion is what a participant waits between designs.
+
 ## Results
 
 On the TAF+ Simulation 2 users (4 similarity ranges, 10 new users each, 20
@@ -141,15 +160,22 @@ evaluations, one seed), with full tables in
 - **Against TAF+:** TAF+'s first design (the population's best guess) is
   unmatched early, and TAF-EHVI needs about 10 evaluations to catch up; by
   evaluation 20 TAF-EHVI and qLogNEHVI have 2.5 to 3.6 times less hypervolume
-  regret than TAF+, which stalls after its first design.
+  regret than TAF+. TAF+ optimizes the weighted sum, not hypervolume, so this
+  measures how much of the front its designs happen to cover.
+- **Against TAF-EIPV** ([TAF-EIPV](taf-eipv.md)), OpenBO's other multi-objective
+  TAF, whose source pull fades as the user explores: TAF-EIPV is clearly better on
+  hypervolume for ranges up to 0.2, and about 25 times faster per step.
 
 ## Limitations and open work
 
 - It needs at least one observation before its first suggestion (`n_init >= 1`);
   it cannot start from the sources alone, as TAF and TAF+ do. That start might
   close the early gap to TAF+.
-- No WebSocket server yet, and not registered in the MOBO benchmark runner
-  (`benchmarks/mobo_runner.py`); it is benchmarked only through the TAF+ runner.
+- Served, together with TAF-EIPV, by the TAF-MOBO WebSocket server
+  (`server_scripts/run_taf_mobo_server.py`, port 8772, `method: taf_ehvi`;
+  [protocol](servers.md#taf-mobo-server-protocol)). Not registered in the MOBO
+  benchmark runner (`benchmarks/mobo_runner.py`); it is benchmarked only through
+  the TAF+ runner.
 - No design plan in `docs/plans/` and no paper in `relevant_papers/references.bib`.
 - Only its defaults were benchmarked (TAF-R weights, no warmup, no decay), with
   one seed.

@@ -14,6 +14,7 @@ Use one of the backend-specific config files:
 - `configs/server_optimizers/conbo_server.yaml`
 - `configs/server_optimizers/taf_plus_server.yaml`
 - `configs/server_optimizers/naf_server.yaml` (Branin; also `naf_server_goldstein_price.yaml` and `naf_server_hartmann3.yaml` for the other two families)
+- `configs/server_optimizers/taf_mobo_server.yaml`
 
 Without `--config-path`, `run_bo_server.py` uses
 `configs/server_optimizers/bo_server_botorch.yaml`. Pass
@@ -85,6 +86,19 @@ uv run python server_scripts/run_naf_server.py \
   --host 127.0.0.1 \
   --port 8771 \
   --config-path configs/server_optimizers/naf_server.yaml
+```
+
+Start the TAF-MOBO server (transfer for multi-objective BO, port 8772). It serves
+[TAF-EIPV](taf-eipv.md) (default) or [TAF-EHVI](taf-ehvi.md). The sources are
+read from the config's `population_dir` or `taf_run_dir` once, when the server
+starts, and are never changed by a session; restart the server after editing the
+config:
+
+```bash
+uv run python server_scripts/run_taf_mobo_server.py \
+  --host 127.0.0.1 \
+  --port 8772 \
+  --config-path configs/server_optimizers/taf_mobo_server.yaml
 ```
 
 The server reads the config file at session start.
@@ -211,6 +225,32 @@ n_iter_default: null    # null = the AF's training budget T (30 here)
 `af_dir` must hold a `scripts/train_naf.py` output folder (`<af_name>.pt`
 and `naf_config.json`), and the AF's input dimension must match `input_dim`.
 The GP hyperparameters and the budget come from the AF's own config.
+
+Example TAF-MOBO config (`taf_mobo_server.yaml`, set up for the TAF+ sphere
+users with the archived range-0.1 population as sources):
+
+```yaml
+input_dim: 4
+y_range: [[-12.0, 2.0], [-12.0, 2.0], [-12.0, 2.0]]   # one [min, max] per objective
+v_ref: [-1.0, -1.0, -1.0]   # hypervolume box; defaults to the y_range corners
+w_ref: [1.2, 1.2, 1.2]
+population_dir: benchmark_results/taf_plus_sims/populations/v1_sim2_r01_s0   # or taf_run_dir
+method_default: taf_eipv    # taf_eipv | taf_ehvi
+n_iter_default: 10          # total evaluations per session
+n_init_default: null        # random designs first; null = 0 for taf_eipv, 1 for taf_ehvi
+weight_mode_default: taf_r  # taf_eipv: taf_r | uniform; taf_ehvi: taf_r | taf_r_pareto | taf_m
+rho_default: 1.0
+n_candidates_default: 1024  # taf_eipv
+num_restarts_default: 4     # taf_ehvi
+raw_samples_default: 256    # taf_ehvi
+```
+
+Set exactly one of `population_dir` (a saved `TAFPlusPopulation`) and
+`taf_run_dir` (the TAF run layout with one GP state per objective, as written by
+`mobo_taf.write_population_sources`). The sources' input dimension and number of
+objectives must match `input_dim` and `y_range`. Choose `v_ref` below each
+objective's worst value of interest and `w_ref` above its best: the hypervolume
+is measured between them.
 
 Assumptions for server optimization:
 - input is normalized to `[0, 1]^d`
@@ -488,6 +528,59 @@ async def main():
 asyncio.run(main())
 ```
 
+### TAF-MOBO server protocol
+
+The TAF-MOBO server (`run_taf_mobo_server.py`) uses the same message types as the
+MOBO server: `observe.y` is a list with one value per objective, each checked
+against its `y_range`. **One session is one new user**:
+
+- **`start`** may set `method` (`taf_eipv` or `taf_ehvi`), `n_iter` (total
+  evaluations), `n_init` (random designs first; TAF-EHVI needs at least 1),
+  `weight_mode`, `rho`, `seed`, and `n_candidates` (TAF-EIPV) or
+  `num_restarts` and `raw_samples` (TAF-EHVI).
+- **`suggest`** carries `x`, `method`, `phase` (`random` for the random
+  designs, `sources` for TAF-EIPV's first design from the sources alone, then
+  `taf`), `iteration`, `n_iter` and `source_weights` (one per source, `null` for
+  random designs).
+- **`done`** and **`stopped`** carry `x_values`, `y_values` (`n × L`),
+  `pareto_x`, `pareto_y`, `hv_history` (hypervolume above `v_ref` after each
+  observation), `v_ref` and `sources`.
+- `status` reports `n_observations`, `has_pending`, `hypervolume` and
+  `n_sources`.
+- A TAF-EIPV suggestion takes about a second with 10 sources, a TAF-EHVI one
+  several seconds to half a minute ([computation time](taf-eipv.md#computation-time)).
+
+### TAF-MOBO client loop
+
+```python
+import asyncio
+import json
+import websockets
+
+async def run_trial(x):
+    # Replace with your experiment: one value per objective, all maximized,
+    # each inside the config's y_range.
+    return [1.0 - 8.0 * ((x[0] - 0.55) ** 2 + (x[1] - 0.4) ** 2),
+            1.0 - 8.0 * ((x[1] - 0.6) ** 2 + (x[2] - 0.45) ** 2),
+            1.0 - 8.0 * ((x[2] - 0.65) ** 2 + (x[3] - 0.35) ** 2)]
+
+async def main():
+    async with websockets.connect("ws://127.0.0.1:8772") as ws:
+        await ws.send(json.dumps({"type": "start", "method": "taf_eipv", "n_iter": 8}))
+        msg = json.loads(await ws.recv())
+        while msg["type"] == "suggest":
+            # msg["phase"] is "sources" (first design, from earlier users), "random" or "taf"
+            y = await run_trial(msg["x"])
+            await ws.send(json.dumps({"type": "observe", "x": msg["x"], "y": y}))
+            msg = json.loads(await ws.recv())
+        if msg["type"] == "error":
+            raise RuntimeError(msg["message"])
+        print("Pareto front:", msg["pareto_y"])
+        print("hypervolume:", msg["hv_history"][-1])
+
+asyncio.run(main())
+```
+
 ## Step 4. Run the provided fake clients
 
 OpenBO includes a ready-to-run fake client that acts like an external application
@@ -557,6 +650,19 @@ about a second:
 ```bash
 uv run python server_scripts/run_naf_fake_client.py --task-seed 100
 ```
+
+For the TAF-MOBO server, the fake client simulates one new sphere user (CHI 2024
+App. B) with similarity range `--range`, prints each objective vector, and saves
+the server's final message plus the share of the user's true Pareto front covered
+after each evaluation to `test_results/taf_mobo/taf_mobo_server_smoke.json`:
+
+```bash
+uv run python server_scripts/run_taf_mobo_fake_client.py --range 0.1 --user-seed 100
+uv run python server_scripts/run_taf_mobo_fake_client.py --method taf_ehvi --n-iter 5
+```
+
+With the default config, a 10-evaluation TAF-EIPV session takes about 20 seconds;
+it covered 83% of the front after its first design and 97% at the end.
 
 **The fake clients write to `test_results/`, which holds committed files.** Two of the
 commands on this page overwrite them: `run_naf_fake_client.py` (default output

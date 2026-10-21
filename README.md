@@ -62,4 +62,6 @@ OpenBO is licensed under the MIT License; see [LICENSE](LICENSE). If you use Ope
 }
 ```
 
-Please also cite the paper behind each method you use: they are listed on the website's [Publications](https://www.csie.ntu.edu.tw/~yichi/openbo-website/publications.html) page, with BibTeX entries in [`relevant_papers/references.bib`](relevant_papers/references.bib). OpenBO is maintained by Yi-Chi Liao (yichi@csie.ntu.edu.tw).
+Please also cite the paper behind each method you use: they are listed on the website's [Publications](https://www.csie.ntu.edu.tw/~yichi/openbo-website/publications.html) page, with BibTeX entries in [`relevant_papers/references.bib`](relevant_papers/references.bib).
+
+OpenBO is maintained by Yi-Chi Liao (yichi@csie.ntu.edu.tw). Visit my group website: <https://www.csie.ntu.edu.tw/~yichi/>.

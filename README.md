@@ -49,4 +49,16 @@ Design notes for each method (decisions, deviations from the papers, open questi
 
 ## License and citation
 
-OpenBO is licensed under the MIT License; see [LICENSE](LICENSE). To cite OpenBO, and the paper behind each method you use, see the website's [Publications](https://www.csie.ntu.edu.tw/~yichi/openbo-website/publications.html) page; the BibTeX entries are in [`relevant_papers/references.bib`](relevant_papers/references.bib). OpenBO is maintained by Yi-Chi Liao (yichi@csie.ntu.edu.tw).
+OpenBO is licensed under the MIT License; see [LICENSE](LICENSE). If you use OpenBO in your research, please cite it:
+
+```bibtex
+@software{liao2026openbo,
+  author    = {Yi-Chi Liao and Mark Colley and Chih-Hao Hsu and Kuan-Lin Lee},
+  title     = {{OpenBO}: An Open-Source Library for Bayesian Optimization},
+  year      = {2026},
+  publisher = {GitHub},
+  url       = {https://github.com/yichiliao/openbo}
+}
+```
+
+Please also cite the paper behind each method you use: they are listed on the website's [Publications](https://www.csie.ntu.edu.tw/~yichi/openbo-website/publications.html) page, with BibTeX entries in [`relevant_papers/references.bib`](relevant_papers/references.bib). OpenBO is maintained by Yi-Chi Liao (yichi@csie.ntu.edu.tw).

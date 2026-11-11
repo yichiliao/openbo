@@ -70,7 +70,7 @@
 - `test_results/` - day-to-day outputs ([Results folders](results.md#results-folder-convention)).
 - `benchmark_results/` - archived milestone runs ([Archived results](results.md#archived-benchmark-results)), including `naf_branin/` with the trained Branin NAF, `naf_plus_wide/`, and the paper reproductions `taf_plus_paper/` and `conbo_paper/`.
 - `meta-bo-training/` - saved TAF source runs (`taf-gps/`), scratch-server artifacts (`server-scratch-artifacts/`) NAF training runs (`naf/`) and NAF+ training runs (`naf_plus/`).
-- `notebooks/` - five teaching notebooks (`01_bo_from_scratch` … `05_meta_bo_taf_conbo_naf`), stored with their outputs; each runs in about 20 seconds to 2.5 minutes.
+- `notebooks/` - five teaching notebooks (`01_bo_from_scratch` … `05_meta_bo_taf_conbo_naf`), stored with their outputs; each runs in between a few seconds and about 9 minutes on a single CPU thread (03 and 05 take longest); more threads can make the slower ones faster.
 
 ## Stubs and out of scope
 

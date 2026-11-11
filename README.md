@@ -17,6 +17,15 @@ uv run pytest tests    # optional: the full test suite takes a few minutes
 
 Run commands with `uv run ...` (or `source .venv/bin/activate` first), from the repository root: default config and output paths are relative to it.
 
+### Rust version
+
+[OpenBO-Rust](https://github.com/m-colley/openbo-rust), contributed by Mark Colley, is a native Rust port of OpenBO: a library and an `openbo` command-line tool with no Python or PyTorch dependency, covering standard BO, TAF, TAF+, ConBO, NAF, multi-objective BO and TAF-MOBO, with the same JSON ask/tell WebSocket sessions. It is a separate project, derived from this repository at commit `3ceda2d`, and maintained in its own repository, so some features may be missing (methods added here since, such as NAF+, are not in it yet). Its numerical search, random streams and hyperparameter fitting differ from the Python version, so its results are not identical; see its README for tested parity and timings.
+
+```bash
+cargo install openbo-rust --version 0.1.1 --locked   # needs Rust 1.85 or newer
+openbo quickstart
+```
+
 ## A first run
 
 ```python

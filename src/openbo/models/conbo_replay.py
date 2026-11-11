@@ -110,12 +110,24 @@ def standardized_variance_threshold(
     return variance_fraction * (spread if spread > 1e-12 else 1.0)
 
 
+def mean_full(means: np.ndarray, qualifies: np.ndarray) -> np.ndarray:
+    """Per-input mean over qualifying users (0 where none qualifies), shape ``(n_inputs,)``."""
+    counts = np.maximum(qualifies.sum(axis=0), 1)
+    return np.where(qualifies, means, 0.0).sum(axis=0) / counts
+
+
 def replay_targets(
     user_gps: Sequence[GPScratch],
     x: ArrayLike,
     max_variance: float | None,
+    between_users: bool = False,
 ) -> ReplayTargets:
     """Query stored user GPs at `x`, filter by variance and average (paper eq. 7).
+
+    With ``between_users=True`` the variance target also contains the spread of the
+    qualifying users' means (law of total variance), which is the uncertainty about
+    a new user that the average of the users' own variances leaves out. This is not
+    in the paper; the default follows it.
 
     A pair (user ``i``, input ``s``) qualifies when ``var_i(s) < max_variance``.
     Each kept input's targets are the averages over its qualifying users;
@@ -136,6 +148,9 @@ def replay_targets(
     counts = n_users[keep]
     mean = np.where(qualifies, means, 0.0).sum(axis=0)[keep] / counts
     var = np.where(qualifies, variances, 0.0).sum(axis=0)[keep] / counts
+    if between_users:
+        centred = np.where(qualifies, means - mean_full(means, qualifies), 0.0)
+        var = var + (centred**2).sum(axis=0)[keep] / counts
     kept_fraction = qualifies.mean(axis=1)
     excluded = tuple(int(i) for i in np.flatnonzero(kept_fraction == 0.0))
     return ReplayTargets(

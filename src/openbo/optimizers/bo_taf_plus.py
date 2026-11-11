@@ -193,6 +193,14 @@ class TAFPlusPopulation:
         self.users.append(user)
         return user
 
+    def first(self, n_users: int) -> TAFPlusPopulation:
+        """Return a population with only the first `n_users` users (for population-size studies)."""
+        if not 1 <= n_users <= self.n_users:
+            raise ValueError(f"n_users must be in [1, {self.n_users}].")
+        other = TAFPlusPopulation(self.input_dim, self.n_objectives, self.kernel_type)
+        other.users = list(self.users[:n_users])
+        return other
+
     def subset(self, exclude: str) -> TAFPlusPopulation:
         """Return a population without one user (for leave-one-out simulations)."""
         other = TAFPlusPopulation(self.input_dim, self.n_objectives, self.kernel_type)

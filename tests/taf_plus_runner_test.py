@@ -109,3 +109,35 @@ def test_hypervolume_curve_is_monotone_and_below_the_front() -> None:
     assert np.all(np.diff(curve) >= -1e-12)
     # The front's own designs score the front's hypervolume; random designs score less.
     assert 0.0 < curve[-1] < front
+
+
+@pytest.mark.parametrize("base", ["relocated_spheres", "spheres_branin", "spheres_branin_hartmann"])
+def test_simulation3_bases_give_three_objectives_and_a_global_optimum(base) -> None:
+    user = make_sphere_users(1, 0.1, 0.1, seed=2, base=base)[0]
+    assert user.base == base
+    x = np.random.default_rng(0).random((5, 4))
+    assert user.noise_free(x).shape == (5, 3)
+    alpha = np.array([0.3, 0.5, 0.2])
+    x_best, value = user.weighted_optimum(alpha)
+    sample = np.random.default_rng(1).random((20000, 4))
+    assert value >= float(np.max(user.noise_free(sample) @ alpha)) - 1e-9
+    assert value == pytest.approx(float(user.noise_free(x_best[None, :])[0] @ alpha))
+
+
+def test_simulation_settings_follow_the_papers_figures() -> None:
+    from openbo.benchmarks.taf_plus_runner import settings_for
+
+    assert settings_for("sim3_branin_hartmann").population_iter == 40
+    assert settings_for("sim4").n_population == 8 and settings_for("sim4", n_evals=3).n_evals == 3
+    assert settings_for("sim2_r01") == SimulationSettings()
+    pop_users, new_users = simulation_users("sim3_branin", 0, settings_for("sim3_branin"))
+    assert pop_users[0].base == "spheres_branin" and new_users[0].base == "spheres_branin"
+
+
+def test_first_k_population_users(population) -> None:
+    sub = population.first(1)
+    assert sub.n_users == 1 and sub.users[0].name == population.users[0].name
+    with pytest.raises(ValueError):
+        population.first(0)
+    result = run_taf_plus_method("taf", "sim2_r01", (0.3, 0.5, 0.2), 0, population, TINY, n_models=1)
+    assert result["n_models"] == 1

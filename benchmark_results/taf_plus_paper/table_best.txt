@@ -1,0 +1,52 @@
+log10 regret of best so far, mean over new users
+setting                method                  @1      @2      @3      @5     @10     @20     @40
+sim2 range 0.05        TAF+                 -2.48   -2.48   -2.48   -2.48   -2.48   -2.48
+sim2 range 0.05        TAF (no decay)       -2.48   -2.48   -2.48   -2.48   -2.48   -2.48
+sim2 range 0.05        BO (weighted sum)     0.06   -0.07   -0.17   -0.28   -0.43   -1.21
+sim2 range 0.05        Random                0.06   -0.07   -0.17   -0.28   -0.47   -0.61
+sim2 range 0.1         TAF+                 -1.89   -1.89   -1.89   -1.89   -1.89   -1.89
+sim2 range 0.1         TAF (no decay)       -1.89   -1.89   -1.89   -1.89   -1.89   -1.89
+sim2 range 0.1         BO (weighted sum)     0.06   -0.07   -0.16   -0.27   -0.42   -1.17
+sim2 range 0.1         Random                0.06   -0.07   -0.16   -0.27   -0.45   -0.60
+sim2 range 0.2         TAF+                 -1.28   -1.30   -1.32   -1.32   -1.37   -1.39
+sim2 range 0.2         TAF (no decay)       -1.28   -1.30   -1.32   -1.32   -1.36   -1.37
+sim2 range 0.2         BO (weighted sum)     0.06   -0.06   -0.16   -0.25   -0.42   -1.24
+sim2 range 0.2         Random                0.06   -0.06   -0.16   -0.25   -0.42   -0.58
+sim2 range 0.3         TAF+                 -0.93   -0.99   -1.01   -1.09   -1.13   -1.15
+sim2 range 0.3         TAF (no decay)       -0.93   -0.99   -1.01   -1.09   -1.12   -1.16
+sim2 range 0.3         BO (weighted sum)     0.06   -0.05   -0.15   -0.25   -0.40   -1.21
+sim2 range 0.3         Random                0.06   -0.05   -0.15   -0.25   -0.41   -0.56
+sim3 Relocated Spheres TAF+                 -1.89   -1.89   -1.89   -1.89   -1.89   -1.89   -1.89
+sim3 Relocated Spheres TAF (no decay)       -1.89   -1.89   -1.89   -1.89   -1.89   -1.89   -1.89
+sim3 Relocated Spheres BO (weighted sum)     0.09   -0.07   -0.17   -0.28   -0.40   -1.22   -2.17
+sim3 Relocated Spheres Random                0.09   -0.07   -0.17   -0.28   -0.47   -0.59   -0.76
+sim3 Spheres + Branin  TAF+                 -1.66   -1.66   -1.66   -1.66   -1.66   -1.66   -1.66
+sim3 Spheres + Branin  TAF (no decay)       -1.66   -1.66   -1.66   -1.66   -1.66   -1.66   -1.66
+sim3 Spheres + Branin  BO (weighted sum)     0.07   -0.02   -0.13   -0.24   -0.37   -0.66   -1.74
+sim3 Spheres + Branin  Random                0.07   -0.02   -0.13   -0.24   -0.42   -0.61   -0.74
+sim3 Sphere + Branin + Hartmann 3D TAF+                 -1.43   -1.43   -1.44   -1.45   -1.45   -1.45   -1.45
+sim3 Sphere + Branin + Hartmann 3D TAF (no decay)       -1.43   -1.43   -1.44   -1.45   -1.45   -1.45   -1.45
+sim3 Sphere + Branin + Hartmann 3D BO (weighted sum)     0.14    0.04   -0.07   -0.18   -0.27   -0.49   -0.85
+sim3 Sphere + Branin + Hartmann 3D Random                0.14    0.04   -0.07   -0.18   -0.28   -0.37   -0.46
+sim1 α = 100 / 000 / 000 TAF (no decay)       -3.78   -3.96   -3.96   -3.97   -4.05   -4.13
+sim1 α = 100 / 000 / 000 BO (weighted sum)     0.07   -0.17   -0.41   -0.66   -1.55   -2.39
+sim1 α = 100 / 000 / 000 Random                0.07   -0.17   -0.41   -0.66   -0.92   -1.21
+sim1 α = 000 / 100 / 000 TAF (no decay)       -3.44   -3.47   -3.48   -3.53   -3.71   -3.79
+sim1 α = 000 / 100 / 000 BO (weighted sum)    -0.05   -0.28   -0.40   -0.61   -1.37   -2.45
+sim1 α = 000 / 100 / 000 Random               -0.05   -0.28   -0.40   -0.61   -0.85   -1.10
+sim1 α = 000 / 000 / 100 TAF (no decay)       -3.16   -3.18   -3.20   -3.31   -3.57   -3.66
+sim1 α = 000 / 000 / 100 BO (weighted sum)    -0.06   -0.25   -0.41   -0.51   -1.60   -2.52
+sim1 α = 000 / 000 / 100 Random               -0.06   -0.25   -0.41   -0.51   -0.86   -1.16
+sim1 α = 033 / 033 / 034 TAF (no decay)       -3.53   -3.53   -3.53   -3.53   -3.53   -3.53
+sim1 α = 033 / 033 / 034 BO (weighted sum)     0.08   -0.04   -0.14   -0.26   -0.40   -1.12
+sim1 α = 033 / 033 / 034 Random                0.08   -0.04   -0.14   -0.26   -0.45   -0.60
+sim1 α = 050 / 030 / 020 TAF (no decay)       -3.57   -3.57   -3.57   -3.57   -3.57   -3.57
+sim1 α = 050 / 030 / 020 BO (weighted sum)     0.09   -0.04   -0.15   -0.29   -0.43   -1.18
+sim1 α = 050 / 030 / 020 Random                0.09   -0.04   -0.15   -0.29   -0.46   -0.61
+sim1 α = 030 / 050 / 020 TAF (no decay)       -3.62   -3.62   -3.62   -3.62   -3.62   -3.62
+sim1 α = 030 / 050 / 020 BO (weighted sum)     0.07   -0.07   -0.17   -0.29   -0.43   -1.08
+sim1 α = 030 / 050 / 020 Random                0.07   -0.07   -0.17   -0.29   -0.49   -0.62
+sim4                   TAF+ 2 models        -1.21   -1.23   -1.25   -1.25   -1.25
+sim4                   TAF+ 4 models        -1.27   -1.30   -1.31   -1.31   -1.32
+sim4                   TAF+ 6 models        -1.26   -1.27   -1.29   -1.30   -1.30
+sim4                   TAF+ 8 models        -1.28   -1.30   -1.32   -1.33   -1.33

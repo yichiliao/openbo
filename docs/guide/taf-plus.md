@@ -103,6 +103,11 @@ the outputs within a similarity range `r`. Each setting has 10 population
 users, modelled with qLogNEHVI, and 10 new users. Settings (`--sim`):
 `sim1` (`r = 0.01`, used with six `--alpha` vectors), and `sim2_r005`,
 `sim2_r01`, `sim2_r02`, `sim2_r03` (`r` = 0.05–0.3, `α = (0.3, 0.5, 0.2)`).
+Simulations 3 and 4 are there too: `sim3_relocated`, `sim3_branin` and
+`sim3_branin_hartmann` change the base function, and `sim4` with `--n-models k`
+uses only the first `k` population users; see [Reproducing the papers](paper-reproduction.md#taf-simulations).
+`--n-evals` overrides the evaluations per new user (default: the simulation's own),
+and `plot_taf_plus_results.py --seeds 0 1 2` pools the new users of several seeds.
 
 ```bash
 # Population models (built on first use and cached), then the decay search

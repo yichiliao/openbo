@@ -1,6 +1,6 @@
 # OpenBO
 
-OpenBO is a research and teaching Python library for Bayesian optimization (BO): standard BO (from scratch in NumPy, and with BoTorch), transfer and meta-BO (TAF, TAF+, continual BO, MetaBO-style neural acquisition functions) and multi-objective BO, including multi-objective transfer (TAF-MOBO). Every optimizer has a Python ask/tell interface, benchmark scripts and a WebSocket server for human-in-the-loop studies.
+OpenBO is a research and teaching Python library for Bayesian optimization (BO): standard BO (from scratch in NumPy, and with BoTorch), transfer and meta-BO (TAF, TAF+, continual BO, MetaBO-style neural acquisition functions and NAF+) and multi-objective BO, including multi-objective transfer (TAF-MOBO). Every optimizer has a Python ask/tell interface, benchmark scripts and a WebSocket server for human-in-the-loop studies.
 
 **Website: [https://www.csie.ntu.edu.tw/~yichi/openbo-website/](https://www.csie.ntu.edu.tw/~yichi/openbo-website/index.html)**, with the overview, [how to call each method](https://www.csie.ntu.edu.tw/~yichi/openbo-website/methods.html), [interactive demos](https://www.csie.ntu.edu.tw/~yichi/openbo-website/demos.html), [benchmark results](https://www.csie.ntu.edu.tw/~yichi/openbo-website/benchmarks.html) and [how to cite](https://www.csie.ntu.edu.tw/~yichi/openbo-website/publications.html).
 
@@ -43,9 +43,13 @@ The full command reference is in [`docs/guide/`](docs/guide/README.md):
 | Continual BO (ConBO) | [conbo.md](docs/guide/conbo.md) |
 | TAF+ | [taf-plus.md](docs/guide/taf-plus.md) |
 | NAF (MetaBO) | [naf.md](docs/guide/naf.md) |
+| NAF+ (objective weights and a novelty fallback) | [naf-plus.md](docs/guide/naf-plus.md) |
+| Reproducing the TAF+ and ConBO papers | [paper-reproduction.md](docs/guide/paper-reproduction.md) |
 | WebSocket servers and their protocols | [servers.md](docs/guide/servers.md) |
 | Output folders and archived benchmarks | [results.md](docs/guide/results.md) |
 | Project structure and stubs | [project-structure.md](docs/guide/project-structure.md) |
+
+To learn BO step by step, start with the teaching notebooks in [`notebooks/`](notebooks/): `01_bo_from_scratch` (the loop by hand), `02_gp_posterior_visualized`, `03_ei_ucb_pi`, `04_botorch_bo` and `05_meta_bo_taf_conbo_naf` (reusing earlier tasks). Each is stored with its outputs; open it in VS Code or Jupyter with the project's `.venv` as the kernel, or refresh the outputs with `uv run python scripts/execute_notebooks.py`.
 
 Design notes for each method (decisions, deviations from the papers, open questions) are in [`docs/plans/`](docs/plans/).
 

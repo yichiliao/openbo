@@ -8,7 +8,7 @@ AGPL-3.0 and none of it is copied).
 - Phase 3: ``BOEpisode`` (one BO run as an RL episode), ``NAFConfig`` (Table 4
   of the paper plus the reference code's choices) and ``train_naf`` (PPO with
   GAE, a value function of ``(t, T)`` only, parallel rollouts).
-- Optional extension: ``NAFConfig.n_weights > 0`` trains a weight-conditioned
+- NAF+ extension (``optimizers/naf_plus.py``): ``NAFConfig.n_weights > 0`` trains a weight-conditioned
   AF on tasks that carry objective ``weights``; the AF and the value function
   then also read the weights. With ``n_weights = 0`` everything is MetaBO's
   NAF, also on weighted tasks.
@@ -742,6 +742,8 @@ class NAFSequentialOptimizer:
     AF needs the objective ``weights`` (on the simplex); a plain AF
     ignores them. With an ``rng``, each point is instead drawn from the AF's
     softmax over ``xi_t``, as during training (not MetaBO's test protocol).
+    With ``avoid_repeats``, points already evaluated are never suggested again
+    (MetaBO allows repeats; on a noise-free objective they give no information).
     """
 
     def __init__(
@@ -752,6 +754,7 @@ class NAFSequentialOptimizer:
         adaptive_set: AdaptiveSet,
         weights: Sequence[float] | None = None,
         rng: np.random.Generator | None = None,
+        avoid_repeats: bool = False,
     ) -> None:
         if budget < 1:
             raise ValueError("budget must be positive.")
@@ -766,6 +769,7 @@ class NAFSequentialOptimizer:
         self.budget = budget
         self.adaptive_set = adaptive_set
         self.rng = rng
+        self.avoid_repeats = avoid_repeats
         self.x_obs = np.empty((0, dim), dtype=np.float64)
         self.y_obs = np.empty(0, dtype=np.float64)
 
@@ -776,11 +780,17 @@ class NAFSequentialOptimizer:
         name: str = "best_af",
         weights: Sequence[float] | None = None,
         rng: np.random.Generator | None = None,
+        avoid_repeats: bool = False,
     ) -> NAFSequentialOptimizer:
         """Load a trained AF (``best_af`` by default) with the settings it was trained with."""
         af, config, gp_hyperparameters = load_naf(directory, name)
         af.eval()
-        return cls(af, gp_hyperparameters, config.budget, config.adaptive_set(), weights, rng)
+        return cls(af, gp_hyperparameters, config.budget, config.adaptive_set(), weights, rng, avoid_repeats)
+
+    @property
+    def excluded_points(self) -> NDArray[np.float64] | None:
+        """The points ``suggest`` must skip: the evaluated ones with ``avoid_repeats``, else ``None``."""
+        return self.x_obs if self.avoid_repeats else None
 
     @property
     def t(self) -> int:
@@ -793,8 +803,8 @@ class NAFSequentialOptimizer:
             raise RuntimeError(f"The budget of {self.budget} evaluations is used up.")
         score = naf_score_fn(self.af, self.gp, self.t, self.budget, self.weights)
         if self.rng is not None:
-            return self.adaptive_set.sample(score, self.rng)
-        return self.adaptive_set.maximize(score)
+            return self.adaptive_set.sample(score, self.rng, self.excluded_points)
+        return self.adaptive_set.maximize(score, self.excluded_points)
 
     def observe(self, x: NDArray[np.float64], y: NDArray[np.float64]) -> None:
         """Record evaluations ``x`` ``(n, d)`` and ``y`` ``(n,)``, then refit the GP."""

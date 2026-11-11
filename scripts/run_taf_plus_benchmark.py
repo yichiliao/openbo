@@ -22,9 +22,9 @@ from openbo.benchmarks.taf_plus_runner import (
     SIM2_OBJECTIVE_WEIGHTS,
     TAF_PLUS_METHODS,
     TAF_PLUS_SIMULATIONS,
-    SimulationSettings,
     build_population,
     run_taf_plus_method,
+    settings_for,
 )
 from openbo.optimizers.bo_taf_plus import TAFPlusConfig
 from openbo.optimizers.taf_plus_workflow import search_decay
@@ -50,16 +50,21 @@ def main() -> None:
     parser.add_argument("--d1", type=int, default=None, help="Decay start (taf_plus).")
     parser.add_argument("--d2", type=float, default=None, help="Decay rate (taf_plus).")
     parser.add_argument("--workers", type=int, default=1, help="Processes for population modeling and decay search.")
-    parser.add_argument("--n-evals", type=int, default=20, help="Evaluations per new user.")
+    parser.add_argument(
+        "--n-evals", type=int, default=None, help="Evaluations per new user (default: the simulation's own)."
+    )
+    parser.add_argument(
+        "--n-models", type=int, default=None, help="Use only the first k population users (Simulation 4)."
+    )
     parser.add_argument("--results-dir", default="test_results/taf_plus", help="Output root folder.")
     parser.add_argument("--test-id", default="default", help="Experiment id used in filenames.")
     args = parser.parse_args()
 
     alpha = tuple(float(a) for a in args.alpha)
-    settings = SimulationSettings(n_evals=args.n_evals)
+    settings = settings_for(args.sim, n_evals=args.n_evals)
     root = Path(args.results_dir)
-    tag = f"{args.sim}_{alpha_tag(alpha)}_s{args.seed}"
-    decay_path = root / "decay" / f"{args.test_id}_{tag}.json"
+    tag = f"{args.sim}_{alpha_tag(alpha)}_s{args.seed}" + (f"_m{args.n_models}" if args.n_models else "")
+    decay_path = root / "decay" / f"{args.test_id}_{args.sim}_{alpha_tag(alpha)}_s{args.seed}.json"
     start = time.perf_counter()
 
     population = build_population(
@@ -113,7 +118,7 @@ def main() -> None:
         best = json.loads(decay_path.read_text(encoding="utf-8"))["best"]
         d1, d2 = int(best[0]), float(best[1])
     result = run_taf_plus_method(
-        args.method, args.sim, alpha, args.seed, population, settings, d1=d1 or 0, d2=d2 or 1.0
+        args.method, args.sim, alpha, args.seed, population, settings, d1=d1 or 0, d2=d2 or 1.0, n_models=args.n_models
     )
     out = root / "trajectories" / f"{args.test_id}_{args.method}_{tag}.json"
     out.parent.mkdir(parents=True, exist_ok=True)

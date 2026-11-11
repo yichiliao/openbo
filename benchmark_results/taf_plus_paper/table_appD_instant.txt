@@ -1,0 +1,5 @@
+log10 regret of each design, mean over new users
+setting                method                  @1      @5     @10     @20     @40     @60
+sim2 range 0.2         TAF+                 -1.28    0.14   -0.01    0.23    0.08   -0.01
+sim2 range 0.2         TAF (no decay)       -1.28    0.13   -0.08    0.10    0.19   -0.01
+sim2 range 0.2         BO (weighted sum)     0.06    0.11    0.08   -0.27   -0.08   -0.01

@@ -1,4 +1,4 @@
-"""Check local documentation links, and that the first four teaching notebooks parse (and run)."""
+"""Check local documentation links, and that the teaching notebooks parse (and run)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-NOTEBOOKS = sorted((ROOT / "notebooks").glob("0[1-4]_*.ipynb"))
+NOTEBOOKS = sorted((ROOT / "notebooks").glob("0[1-9]_*.ipynb"))
 
 
 def anchors(path: Path) -> set[str]:
@@ -63,7 +63,7 @@ def main() -> None:
         ast.parse(code, filename=path.name)
         if args.execute_notebooks:
             print(f"Executing {path.name}", flush=True)
-            subprocess.run([sys.executable, "-c", code], cwd=ROOT, check=True, timeout=180)
+            subprocess.run([sys.executable, "-c", code], cwd=path.parent, check=True, timeout=1800)
     if errors:
         raise SystemExit("\n".join(errors))
     print(f"Checked links in {len(documents)} Markdown files and {len(NOTEBOOKS)} teaching notebooks.")

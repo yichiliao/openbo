@@ -11,7 +11,7 @@ initialized from ``N(0, 0.01^2)`` with zero biases (a near-uniform initial
 policy), a regular global grid, and local Sobol clouds around the best grid
 points instead of gradient-based maximization.
 
-An optional extension appends objective weights ``w_1..w_N`` (on the simplex)
+NAF+ (``acquisition/naf_plus.py``) appends objective weights ``w_1..w_N`` (on the simplex)
 to every point's features, giving a weight-conditioned AF. With
 ``n_weights = 0`` (the default) everything is MetaBO's NAF.
 """
@@ -191,16 +191,46 @@ class AdaptiveSet:
         points = np.vstack([local[top], self.global_grid])
         return points, np.concatenate([local_scores[top], grid_scores])
 
-    def maximize(self, score: ScoreFn) -> NDArray[np.float64]:
-        """The argmax of ``score`` over ``xi_t``, shape ``(1, d)`` (test-time AF maximization)."""
+    def maximize(self, score: ScoreFn, exclude: NDArray[np.float64] | None = None) -> NDArray[np.float64]:
+        """The argmax of ``score`` over ``xi_t``, shape ``(1, d)`` (test-time AF maximization).
+
+        Candidates equal to a row of ``exclude`` (for example the points
+        already evaluated) are skipped, unless that would leave none.
+        """
         points, scores = self.candidates(score)
+        scores = _excluded(points, scores, exclude)
         return points[int(np.argmax(scores))][None, :].copy()
 
-    def sample(self, score: ScoreFn, rng: np.random.Generator) -> NDArray[np.float64]:
-        """A point of ``xi_t`` drawn from ``softmax(score)``, shape ``(1, d)`` (the training policy)."""
+    def sample(
+        self, score: ScoreFn, rng: np.random.Generator, exclude: NDArray[np.float64] | None = None
+    ) -> NDArray[np.float64]:
+        """A point of ``xi_t`` drawn from ``softmax(score)``, shape ``(1, d)`` (the training policy).
+
+        ``exclude`` works as in :meth:`maximize`.
+        """
         points, scores = self.candidates(score)
+        scores = _excluded(points, scores, exclude)
         p = np.exp(scores - scores.max())
         return points[int(rng.choice(p.size, p=p / p.sum()))][None, :].copy()
+
+
+REPEAT_TOLERANCE = 1e-9
+
+
+def _excluded(
+    points: NDArray[np.float64], scores: NDArray[np.float64], exclude: NDArray[np.float64] | None
+) -> NDArray[np.float64]:
+    """``scores`` with candidates within ``REPEAT_TOLERANCE`` of a row of ``exclude`` set to ``-inf``.
+
+    Returns ``scores`` unchanged if ``exclude`` is empty or covers every candidate.
+    """
+    if exclude is None or exclude.shape[0] == 0:
+        return scores
+    gap = np.abs(points[:, None, :] - exclude[None, :, :]).max(axis=2).min(axis=1)
+    seen = gap <= REPEAT_TOLERANCE
+    if seen.all():
+        return scores
+    return np.where(seen, -np.inf, scores)
 
 
 def gp_mean_std(gp: object, x: NDArray[np.float64]) -> tuple[NDArray[np.float64], NDArray[np.float64]]:

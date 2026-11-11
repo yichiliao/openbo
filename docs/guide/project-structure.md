@@ -4,7 +4,7 @@
 
 - `README.md` - short overview, installation and links.
 - `docs/guide/` - the user guide: one file per workflow and method.
-- `docs/plans/` - design notes and implementation plans (`mobo.md`, `conbo.md`, `taf_plus.md`, `naf.md`, `taf_eipv.md`).
+- `docs/plans/` - design notes and implementation plans (`mobo.md`, `conbo.md`, `taf_plus.md`, `naf.md`, `naf_plus.md`, `taf_eipv.md`, `paper_reproduction.md`).
 - `relevant_papers/references.bib` - BibTeX for the papers OpenBO implements directly (PDFs are not redistributed; follow the DOIs).
 - `pyproject.toml` - dependencies, build config, and project metadata.
 - `configs/` - YAML configs and reusable artifacts.
@@ -13,12 +13,12 @@
   - `family_splits/*.json` - persisted train/test task-family splits.
   - `server_optimizers/*.yaml` - runtime configs for BO servers (e.g. `input_dim`, `y_range`, TAF defaults).
 - `src/openbo/` - main package (`import openbo`; distribution name is `open-bo`).
-  - `test_functions/` - synthetic objectives, transforms, family/task variants and registry utilities; multi-objective problems (`multi_objective.py`), ConBO's simulated users (`families.py`), TAF+'s sphere users (`taf_plus_users.py`) and MetaBO's Branin, Goldstein-Price and Hartmann-3 families for NAF (`metabo_families.py`).
+  - `test_functions/` - synthetic objectives, transforms, family/task variants and registry utilities; multi-objective problems (`multi_objective.py`), ConBO's simulated users (`families.py`), TAF+'s sphere users (`taf_plus_users.py`) MetaBO's Branin, Goldstein-Price and Hartmann-3 families for NAF (`metabo_families.py`) and NAF+'s double-sphere users (`naf_plus_families.py`).
   - `models/` - GP implementations and kernels (the NumPy GP in `gp_scratch.py`), including the multi-output GP in `multi_output_gp.py`, a slice sampler in `slice_sampling.py`, and ConBO's MC-dropout population BNN (`bnn.py`) and generative replay (`conbo_replay.py`).
-  - `acquisition/` - EI, TAF, EIPV/CEIPV for MOBO (`mobo.py`), ConBO's mixed population/user EI (`conbo.py`), the multi-objective TAF-EHVI terms and weights (`taf_mo_ehvi.py`), TAF-EIPV's source term, weights and blend (`taf_eipv.py`), TAF+ with objective weights and decay (`taf_plus.py`; see [`docs/plans/taf_plus.md`](../plans/taf_plus.md)), and the neural AF with its features and candidate set (`naf.py`).
-  - `optimizers/` - random search (`random_search.py`), standard BO, TAF; MOBO in `mobo.py` and the qLogNEHVI baseline in `mobo_botorch.py`; multi-objective TAF on BoTorch (TAF-EHVI) in `mobo_taf.py` and on OpenBO's own MOBO (TAF-EIPV) in `mobo_taf_eipv.py`; continual BO across a sequence of users in `conbo.py`; TAF+ (transfer from earlier users with objective weights and decay) in `bo_taf_plus.py`, with its workflow steps (objective weights from ratings, decay search) in `taf_plus_workflow.py`; NAF / MetaBO (fixed family GPs, RL episodes, PPO training, ask/tell optimizer) in `naf.py`.
+  - `acquisition/` - EI, TAF, EIPV/CEIPV for MOBO (`mobo.py`), ConBO's mixed population/user EI (`conbo.py`), the multi-objective TAF-EHVI terms and weights (`taf_mo_ehvi.py`), TAF-EIPV's source term, weights and blend (`taf_eipv.py`), TAF+ with objective weights and decay (`taf_plus.py`; see [`docs/plans/taf_plus.md`](../plans/taf_plus.md)), the neural AF with its features and candidate set (`naf.py`), and NAF+'s novelty p-values and EI/AF mixing (`naf_plus.py`).
+  - `optimizers/` - random search (`random_search.py`), standard BO, TAF; MOBO in `mobo.py` and the qLogNEHVI baseline in `mobo_botorch.py`; multi-objective TAF on BoTorch (TAF-EHVI) in `mobo_taf.py` and on OpenBO's own MOBO (TAF-EIPV) in `mobo_taf_eipv.py`; continual BO across a sequence of users in `conbo.py`; TAF+ (transfer from earlier users with objective weights and decay) in `bo_taf_plus.py`, with its workflow steps (objective weights from ratings, decay search) in `taf_plus_workflow.py`; NAF / MetaBO (fixed family GPs, RL episodes, PPO training, ask/tell optimizer) in `naf.py`; NAF+ (weight-conditioned AF, novelty detector, EI fallback) in `naf_plus.py`.
   - `server_optimizers/` - WebSocket session adapters for generic BO, TAF, MOBO, ConBO, TAF+, NAF and TAF-MOBO (`taf_mobo_server.py`: TAF-EIPV or TAF-EHVI).
-  - `benchmarks/` - `run_simple_benchmark` method dispatcher, Pareto/hypervolume utilities (`hypervolume.py`), the MOBO method dispatcher (`mobo_runner.py`), the ConBO user-sequence dispatcher (`conbo_runner.py`), the TAF+ simulation runner (`taf_plus_runner.py`), the MetaBO benchmark runner (`naf_runner.py`), and placeholder metrics/plotting/seeds modules.
+  - `benchmarks/` - `run_simple_benchmark` method dispatcher, Pareto/hypervolume utilities (`hypervolume.py`), the MOBO method dispatcher (`mobo_runner.py`), the ConBO user-sequence dispatcher (`conbo_runner.py`), the TAF+ simulation runner (`taf_plus_runner.py`), the MetaBO benchmark runner (`naf_runner.py`), the NAF+ benchmark runner (`naf_plus_runner.py`), and placeholder metrics/plotting/seeds modules.
 - `scripts/` - local benchmark/training/plot entrypoints.
   - `run_benchmark.py` - run one method on one function; optional `--noisy` and 2D x-location plot.
   - `plot_results.py` - single-function multi-method log-regret plots (rerun or stored trajectories).
@@ -37,7 +37,15 @@
   - `train_naf.py` - train a MetaBO neural AF with PPO (Branin; checkpoints and resume).
   - `run_naf_benchmark.py` - run one method of the MetaBO benchmark (NAF, EI, TAF-ME-50, TAF-R-50, random) on unseen test tasks.
   - `plot_naf_results.py` - median log10 regret curves with 30–70% bands, and a NAF training curve.
-  - `plot_taf_plus_results.py` - TAF+ regret curves (each design or best so far), decay-search heatmaps and a summary table.
+  - `plot_taf_plus_results.py` - TAF+ regret curves (each design, best so far or hypervolume), decay-search heatmaps and a summary table; `--seeds` pools several seeds.
+  - `plot_conbo_paper_figures.py` - the ConBO paper's Figures 4–7 (regret groups, computation time, variance maps, re-optimization) from `run_conbo_benchmark.py` runs.
+  - `diagnose_conbo_prior.py` - judge a final ConBO population BNN as a prior for held-out users.
+  - `train_naf_plus.py` - train NAF+ (the novelty detector, then the weight-conditioned AF with PPO).
+  - `run_naf_plus_benchmark.py` - run one method of the NAF+ benchmark (Test 1.1 or 1.2) on unseen users.
+  - `plot_naf_plus_results.py` - NAF+ median regret curves, the fallback's EI weight per iteration and a table.
+  - `calibrate_naf_plus_novelty.py` - the null distribution for NAF+'s calibrated novelty test (`novelty_calibration.json`).
+  - `diagnose_naf_plus_weights.py` - run the same users under every objective weight to check the weight conditioning.
+  - `execute_notebooks.py` - execute the teaching notebooks and save them with fresh outputs.
   - `run_botorch_fake_client.py` - toy client loop for BoTorch-oriented external-objective testing.
   - `check_docs.py` - checks local Markdown links and anchors, and that the teaching notebooks parse (`--execute-notebooks` runs them).
   - `aggregate_results.py` - placeholder aggregation script.
@@ -60,13 +68,13 @@
   - `plot_manual_family_trajectories.py` - manual-workflow regret plotting from saved train/test trajectory artifacts.
 - `tests/` - test suite for objectives, GP/acquisition behavior, benchmark paths, and server logic (`*_test.py`; run with `uv run pytest tests`).
 - `test_results/` - day-to-day outputs ([Results folders](results.md#results-folder-convention)).
-- `benchmark_results/` - archived milestone runs ([Archived results](results.md#archived-benchmark-results)), including `naf_branin/` with the trained Branin NAF.
-- `meta-bo-training/` - saved TAF source runs (`taf-gps/`), scratch-server artifacts (`server-scratch-artifacts/`) and NAF training runs (`naf/`).
-- `notebooks/` - planned teaching notebooks (`01_bo_from_scratch` … `05_meta_bo_taf_conbo_naf`); currently empty placeholders.
+- `benchmark_results/` - archived milestone runs ([Archived results](results.md#archived-benchmark-results)), including `naf_branin/` with the trained Branin NAF, `naf_plus_wide/`, and the paper reproductions `taf_plus_paper/` and `conbo_paper/`.
+- `meta-bo-training/` - saved TAF source runs (`taf-gps/`), scratch-server artifacts (`server-scratch-artifacts/`) NAF training runs (`naf/`) and NAF+ training runs (`naf_plus/`).
+- `notebooks/` - five teaching notebooks (`01_bo_from_scratch` … `05_meta_bo_taf_conbo_naf`), stored with their outputs; each runs in about 20 seconds to 2.5 minutes.
 
 ## Stubs and out of scope
 
 - Several modules under `src/openbo` are **stubs or placeholders** for future work and are **not** exposed through the benchmark or server CLIs: `acquisition/pi.py`, `acquisition/ucb.py`, `models/botorch_gp.py`, `benchmarks/metrics.py`, `benchmarks/plotting.py`, `scripts/aggregate_results.py`.
 - `configs/methods/*.yaml` and `configs/benchmark.yaml` are placeholders; no script reads them. Scripts are configured through command-line flags (and server YAMLs for the WebSocket servers).
 - NAF: MetaBO's GP-prior and real-world tasks are not implemented.
-- The teaching notebooks are still empty.
+- NAF+: no WebSocket server yet, and the paper's typing simulation (Test 2) is not implemented.

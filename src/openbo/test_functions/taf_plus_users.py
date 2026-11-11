@@ -18,6 +18,9 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 from scipy.optimize import minimize
+from scipy.stats import qmc
+
+from openbo.test_functions.metabo_families import normalized_branin, normalized_hartmann3
 
 SPHERE_CENTRES = ((0.55, 0.4), (0.6, 0.45), (0.65, 0.35))
 SPHERE_PAIRS = ((0, 1), (1, 2), (2, 3))
@@ -26,18 +29,58 @@ SPHERE_INPUT_DIM = 4
 SPHERE_NOISE_STD = 0.05
 
 
-def three_spheres(x: NDArray[np.float64]) -> NDArray[np.float64]:
-    """Return the noise-free base function, shape ``(n, 3)``, for ``x`` of shape ``(n, 4)``."""
+def _sphere(x: NDArray[np.float64], pair: tuple[int, int], centre: tuple[float, float]) -> NDArray[np.float64]:
+    """One 2D Sphere ``1 - 8 * ||x[pair] - centre||^2`` (App. B.1)."""
+    return 1.0 - SPHERE_COEFFICIENT * np.sum((x[:, list(pair)] - np.asarray(centre)) ** 2, axis=1)
+
+
+def _check_x(x: NDArray[np.float64]) -> NDArray[np.float64]:
     x = np.atleast_2d(np.asarray(x, dtype=np.float64))
     if x.shape[1] != SPHERE_INPUT_DIM:
         raise ValueError(f"x must have shape (n, {SPHERE_INPUT_DIM}).")
+    return x
+
+
+def three_spheres(x: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Return the noise-free base function, shape ``(n, 3)``, for ``x`` of shape ``(n, 4)``."""
+    x = _check_x(x)
+    return np.stack([_sphere(x, pair, c) for pair, c in zip(SPHERE_PAIRS, SPHERE_CENTRES)], axis=1)
+
+
+# Simulation 3's base functions (App. B.5, Tables 7-9).
+RELOCATED_CENTRES = ((0.55, 0.3), (0.8, 0.35), (0.7, 0.4))
+
+
+def relocated_spheres(x: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Three Spheres with centres further apart (Table 7), shape ``(n, 3)``."""
+    x = _check_x(x)
+    return np.stack([_sphere(x, pair, c) for pair, c in zip(SPHERE_PAIRS, RELOCATED_CENTRES)], axis=1)
+
+
+def spheres_branin(x: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Sphere on ``(x1, x2)``, Branin on ``(x2, x3)``, Sphere on ``(x3, x4)`` (Table 8)."""
+    x = _check_x(x)
     return np.stack(
-        [
-            1.0 - SPHERE_COEFFICIENT * np.sum((x[:, list(pair)] - np.asarray(c)) ** 2, axis=1)
-            for pair, c in zip(SPHERE_PAIRS, SPHERE_CENTRES)
-        ],
-        axis=1,
+        [_sphere(x, (0, 1), (0.55, 0.3)), normalized_branin(x[:, 1:3]), _sphere(x, (2, 3), (0.7, 0.4))], axis=1
     )
+
+
+def spheres_branin_hartmann(x: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Sphere on ``(x1, x2)``, Branin on ``(x2, x3)``, Hartmann-3 on ``(x2, x3, x4)`` (Table 9)."""
+    x = _check_x(x)
+    return np.stack(
+        [_sphere(x, (0, 1), (0.55, 0.3)), normalized_branin(x[:, 1:3]), normalized_hartmann3(x[:, 1:4])], axis=1
+    )
+
+
+# Branin and Hartmann-3 use MetaBO's unit-scale normalizations (the paper does not give its
+# scaling), so the noise std of 0.05 is the same relative size on every objective.
+BASE_FUNCTIONS = {
+    "three_spheres": three_spheres,
+    "relocated_spheres": relocated_spheres,
+    "spheres_branin": spheres_branin,
+    "spheres_branin_hartmann": spheres_branin_hartmann,
+}
 
 
 @dataclass(frozen=True)
@@ -47,11 +90,12 @@ class SphereUser:
     shift: tuple[float, ...]
     scale: float
     noise_std: float = SPHERE_NOISE_STD
+    base: str = "three_spheres"
 
     def noise_free(self, x: NDArray[np.float64]) -> NDArray[np.float64]:
         """Return the user's noise-free objectives, shape ``(n, 3)``."""
         x = np.atleast_2d(np.asarray(x, dtype=np.float64))
-        return self.scale * three_spheres(x + np.asarray(self.shift))
+        return self.scale * BASE_FUNCTIONS[self.base](x + np.asarray(self.shift))
 
     def observe(self, x: NDArray[np.float64], rng: np.random.Generator) -> NDArray[np.float64]:
         """Return noisy objectives, shape ``(n, 3)``."""
@@ -63,26 +107,42 @@ class SphereUser:
     def weighted_optimum(self, objective_weights: NDArray[np.float64]) -> tuple[NDArray[np.float64], float]:
         """Return the maximizer in ``[0, 1]^4`` of the noise-free weighted sum, and its value.
 
-        The weighted sum is a concave quadratic, so one bounded L-BFGS-B run
-        finds the global maximum.
+        The weighted sum of Spheres is a concave quadratic, so one bounded L-BFGS-B
+        run is exact. Branin and Hartmann objectives are not concave: a 4096-point
+        Sobol scan seeds L-BFGS-B runs from its 8 best points (and the centre).
         """
         alpha = np.asarray(objective_weights, dtype=np.float64)
-        result = minimize(
-            lambda z: -float(self.noise_free(z[None, :])[0] @ alpha),
-            np.full(SPHERE_INPUT_DIM, 0.5),
-            method="L-BFGS-B",
-            bounds=[(0.0, 1.0)] * SPHERE_INPUT_DIM,
-            options={"ftol": 1e-15, "gtol": 1e-12},
-        )
+
+        def negative(z: NDArray[np.float64]) -> float:
+            return -float(self.noise_free(z[None, :])[0] @ alpha)
+
+        starts = [np.full(SPHERE_INPUT_DIM, 0.5)]
+        if self.base != "three_spheres" and self.base != "relocated_spheres":
+            pool = qmc.Sobol(SPHERE_INPUT_DIM, scramble=True, seed=0).random(4096)
+            best = np.argsort(-(self.noise_free(pool) @ alpha))[:8]
+            starts += [pool[i] for i in best]
+        results = [
+            minimize(
+                negative,
+                start,
+                method="L-BFGS-B",
+                bounds=[(0.0, 1.0)] * SPHERE_INPUT_DIM,
+                options={"ftol": 1e-15, "gtol": 1e-12},
+            )
+            for start in starts
+        ]
+        result = min(results, key=lambda r: float(r.fun))
         return np.asarray(result.x, dtype=np.float64), -float(result.fun)
 
 
 def make_sphere_users(
-    n_users: int, shift_range: float, scale_range: float, seed: int
+    n_users: int, shift_range: float, scale_range: float, seed: int, base: str = "three_spheres"
 ) -> list[SphereUser]:
     """Sample `n_users` users with shifts ``U(-r_s/2, r_s/2)`` and scales ``U(1 - r_c/2, 1 + r_c/2)``."""
     if n_users < 1:
         raise ValueError("n_users must be positive.")
+    if base not in BASE_FUNCTIONS:
+        raise ValueError(f"Unknown base function '{base}'.")
     if shift_range < 0.0 or not 0.0 <= scale_range < 2.0:
         raise ValueError("shift_range must be >= 0 and scale_range in [0, 2).")
     rng = np.random.default_rng(seed)
@@ -90,5 +150,5 @@ def make_sphere_users(
     for _ in range(n_users):
         shift = rng.uniform(-shift_range / 2, shift_range / 2, size=SPHERE_INPUT_DIM)
         scale = rng.uniform(1.0 - scale_range / 2, 1.0 + scale_range / 2)
-        users.append(SphereUser(tuple(float(s) for s in shift), float(scale)))
+        users.append(SphereUser(tuple(float(s) for s in shift), float(scale), base=base))
     return users

@@ -30,6 +30,12 @@ By default, artifacts are organized under `test_results/`:
   - `trajectories/{test_id}_{method}_{family}.json` (all test tasks of one method)
     and `plots/` (`{test_id}_{family}.png`, `{test_id}_training.png`), plus NAF
     server smoke-test JSON (`naf_server_smoke.json`)
+- `test_results/naf_plus/`
+  - `trajectories/{test_id}_{method}_{test}.json` (with `p_bar` and `lambda_ei`
+    per step for the NAF+ methods), `plots/` and `weights/` (weight diagnostics)
+- `meta-bo-training/naf_plus/{run_id}/` - NAF+ training runs (the NAF files plus
+  `naf_plus_config.json`, `detector.pt`, `detector.json` and, once calibrated,
+  `novelty_calibration.json`)
 - `meta-bo-training/naf/{run_id}/` - NAF training runs (`best_af.pt`, `af.pt`,
   `naf_config.json`, `training_history.json`, `training_state.pt`)
 
@@ -50,9 +56,12 @@ The headline tables and plots are on the website's [Benchmarks](https://www.csie
 | [`conbo_branin_5seeds/`](../../benchmark_results/conbo_branin_5seeds/) | ConBO vs standard BO, TAF-M, TAF-R and a single GP, Test 1, 5 seeds; about 47 minutes on 8 cores ([README](../../benchmark_results/conbo_branin_5seeds/README.md)) | [ConBO benchmark](conbo.md#benchmark-and-plot) |
 | [`mobo_2obj/`](../../benchmark_results/mobo_2obj/) | OKA2 and DTLZ1a, 5 methods × 3 seeds × 40 iterations | [MOBO benchmark](mobo.md#benchmark-and-plot) |
 | [`taf_plus_sims/`](../../benchmark_results/taf_plus_sims/) | CHI 2024 App. B Simulations 1 and 2, one seed, with cached populations and decay searches, plus TAF-EIPV, TAF-EHVI, plain IEIPV and plain qLogNEHVI on the Simulation 2 users (2026-10-21); about 3 hours on 8 cores, plus about 1¾ hours for TAF-EHVI and 5 minutes for TAF-EIPV ([README](../../benchmark_results/taf_plus_sims/README.md)) | [TAF+ benchmark](taf-plus.md#benchmark-and-plot) |
+| [`taf_plus_paper/`](../../benchmark_results/taf_plus_paper/) | TAF+ (CHI 2024) Simulations 1–4, Appendix C and an extended Appendix D run, 5 seeds ([README](../../benchmark_results/taf_plus_paper/README.md)) | [Reproducing the papers](paper-reproduction.md#taf-simulations) |
+| [`conbo_paper/`](../../benchmark_results/conbo_paper/) | ConBO (CHI 2025) Tests 1–3 with the paper's settings, 8 methods including the ablations, 5 seeds ([README](../../benchmark_results/conbo_paper/README.md)) | [Reproducing the papers](paper-reproduction.md#conbo-tests) |
 | [`naf_branin/`](../../benchmark_results/naf_branin/) | The trained Branin AF (`training/branin_metabo50_v1/`, 236 iterations) and 5 methods × 100 test tasks ([README](../../benchmark_results/naf_branin/README.md)) | [Train and benchmark](naf.md#train-a-neural-af) |
 | [`naf_goldstein_price/`](../../benchmark_results/naf_goldstein_price/) | The same for Goldstein-Price, 600 iterations ([README](../../benchmark_results/naf_goldstein_price/README.md)) | [Train and benchmark](naf.md#train-a-neural-af) |
 | [`naf_hartmann3/`](../../benchmark_results/naf_hartmann3/) | The same for Hartmann-3, 600 and 2000 iterations ([README](../../benchmark_results/naf_hartmann3/README.md)) | [Train and benchmark](naf.md#train-a-neural-af) |
+| [`naf_plus_wide/`](../../benchmark_results/naf_plus_wide/) | NAF+ on the wide double-sphere family: trained models, novelty calibration, Tests 1.1 and 1.2 with every method, weight diagnostics; one training seed per model ([README](../../benchmark_results/naf_plus_wide/README.md)) | [NAF+](naf-plus.md#benchmark-and-plot) |
 
 Saved TAF source runs live under `meta-bo-training/taf-gps/` (`branin_train_v1`
 from `train_taf.py`, `branin_server_end_to_end` from the [end-to-end TAF workflow](taf.md#end-to-end-taf-workflow-family-split--scratch-gps--taf) server

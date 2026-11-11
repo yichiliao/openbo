@@ -1,0 +1,68 @@
+.venv/lib/python3.12/site-packages/botorch/optim/optimize.py:796: RuntimeWarning: Optimization failed in `gen_candidates_scipy` with the following warning(s):
+[OptimizationWarning('Optimization failed within `scipy.optimize.minimize` with status 2 and message ABNORMAL: .')]
+Trying again with a new set of initial conditions.
+  return _optimize_acqf_batch(opt_inputs=opt_inputs)
+sim=sim2_r005 seed=3 users=10 seconds=225.8
+sim=sim2_r005 best=(d1=2, d2=0.1) seconds=529.0 saved=benchmark_results/taf_plus_paper/decay/v1_sim2_r005_a030-050-020_s3.json
+method=random sim2_r005_a030-050-020_s3 seconds=0.1 saved=benchmark_results/taf_plus_paper/trajectories/v1_random_sim2_r005_a030-050-020_s3.json
+method=bo sim2_r005_a030-050-020_s3 seconds=25.8 saved=benchmark_results/taf_plus_paper/trajectories/v1_bo_sim2_r005_a030-050-020_s3.json
+method=taf_plus sim2_r005_a030-050-020_s3 seconds=105.8 saved=benchmark_results/taf_plus_paper/trajectories/v1_taf_plus_sim2_r005_a030-050-020_s3.json
+method=taf sim2_r005_a030-050-020_s3 seconds=113.8 saved=benchmark_results/taf_plus_paper/trajectories/v1_taf_sim2_r005_a030-050-020_s3.json
+sim=sim2_r01 seed=3 users=10 seconds=221.9
+sim=sim2_r01 best=(d1=7, d2=0.3) seconds=503.7 saved=benchmark_results/taf_plus_paper/decay/v1_sim2_r01_a030-050-020_s3.json
+method=random sim2_r01_a030-050-020_s3 seconds=0.1 saved=benchmark_results/taf_plus_paper/trajectories/v1_random_sim2_r01_a030-050-020_s3.json
+method=bo sim2_r01_a030-050-020_s3 seconds=24.5 saved=benchmark_results/taf_plus_paper/trajectories/v1_bo_sim2_r01_a030-050-020_s3.json
+method=taf_plus sim2_r01_a030-050-020_s3 seconds=101.0 saved=benchmark_results/taf_plus_paper/trajectories/v1_taf_plus_sim2_r01_a030-050-020_s3.json
+method=taf sim2_r01_a030-050-020_s3 seconds=111.9 saved=benchmark_results/taf_plus_paper/trajectories/v1_taf_sim2_r01_a030-050-020_s3.json
+.venv/lib/python3.12/site-packages/botorch/optim/optimize.py:796: RuntimeWarning: Optimization failed in `gen_candidates_scipy` with the following warning(s):
+[OptimizationWarning('Optimization failed within `scipy.optimize.minimize` with status 2 and message ABNORMAL: .')]
+Trying again with a new set of initial conditions.
+  return _optimize_acqf_batch(opt_inputs=opt_inputs)
+sim=sim2_r02 seed=3 users=10 seconds=218.1
+sim=sim2_r02 best=(d1=9, d2=0.2) seconds=507.4 saved=benchmark_results/taf_plus_paper/decay/v1_sim2_r02_a030-050-020_s3.json
+method=random sim2_r02_a030-050-020_s3 seconds=0.0 saved=benchmark_results/taf_plus_paper/trajectories/v1_random_sim2_r02_a030-050-020_s3.json
+method=bo sim2_r02_a030-050-020_s3 seconds=20.4 saved=benchmark_results/taf_plus_paper/trajectories/v1_bo_sim2_r02_a030-050-020_s3.json
+method=taf_plus sim2_r02_a030-050-020_s3 seconds=88.3 saved=benchmark_results/taf_plus_paper/trajectories/v1_taf_plus_sim2_r02_a030-050-020_s3.json
+method=taf sim2_r02_a030-050-020_s3 seconds=95.6 saved=benchmark_results/taf_plus_paper/trajectories/v1_taf_sim2_r02_a030-050-020_s3.json
+.venv/lib/python3.12/site-packages/botorch/optim/optimize.py:796: RuntimeWarning: Optimization failed in `gen_candidates_scipy` with the following warning(s):
+[OptimizationWarning('Optimization failed within `scipy.optimize.minimize` with status 2 and message ABNORMAL: .')]
+Trying again with a new set of initial conditions.
+  return _optimize_acqf_batch(opt_inputs=opt_inputs)
+.venv/lib/python3.12/site-packages/botorch/optim/optimize.py:796: RuntimeWarning: Optimization failed in `gen_candidates_scipy` with the following warning(s):
+[OptimizationWarning('Optimization failed within `scipy.optimize.minimize` with status 2 and message ABNORMAL: .')]
+Trying again with a new set of initial conditions.
+  return _optimize_acqf_batch(opt_inputs=opt_inputs)
+sim=sim2_r03 seed=3 users=10 seconds=211.4
+sim=sim2_r03 best=(d1=9, d2=0.2) seconds=505.7 saved=benchmark_results/taf_plus_paper/decay/v1_sim2_r03_a030-050-020_s3.json
+method=random sim2_r03_a030-050-020_s3 seconds=0.0 saved=benchmark_results/taf_plus_paper/trajectories/v1_random_sim2_r03_a030-050-020_s3.json
+method=bo sim2_r03_a030-050-020_s3 seconds=21.5 saved=benchmark_results/taf_plus_paper/trajectories/v1_bo_sim2_r03_a030-050-020_s3.json
+method=taf_plus sim2_r03_a030-050-020_s3 seconds=93.7 saved=benchmark_results/taf_plus_paper/trajectories/v1_taf_plus_sim2_r03_a030-050-020_s3.json
+method=taf sim2_r03_a030-050-020_s3 seconds=99.0 saved=benchmark_results/taf_plus_paper/trajectories/v1_taf_sim2_r03_a030-050-020_s3.json
+sim=sim1 seed=3 users=10 seconds=221.5
+method=random sim1_a100-000-000_s3 seconds=0.0 saved=benchmark_results/taf_plus_paper/trajectories/v1_random_sim1_a100-000-000_s3.json
+method=bo sim1_a100-000-000_s3 seconds=21.6 saved=benchmark_results/taf_plus_paper/trajectories/v1_bo_sim1_a100-000-000_s3.json
+method=taf sim1_a100-000-000_s3 seconds=97.2 saved=benchmark_results/taf_plus_paper/trajectories/v1_taf_sim1_a100-000-000_s3.json
+method=random sim1_a000-100-000_s3 seconds=0.0 saved=benchmark_results/taf_plus_paper/trajectories/v1_random_sim1_a000-100-000_s3.json
+method=bo sim1_a000-100-000_s3 seconds=22.3 saved=benchmark_results/taf_plus_paper/trajectories/v1_bo_sim1_a000-100-000_s3.json
+method=taf sim1_a000-100-000_s3 seconds=99.0 saved=benchmark_results/taf_plus_paper/trajectories/v1_taf_sim1_a000-100-000_s3.json
+method=random sim1_a000-000-100_s3 seconds=0.0 saved=benchmark_results/taf_plus_paper/trajectories/v1_random_sim1_a000-000-100_s3.json
+method=bo sim1_a000-000-100_s3 seconds=21.1 saved=benchmark_results/taf_plus_paper/trajectories/v1_bo_sim1_a000-000-100_s3.json
+method=taf sim1_a000-000-100_s3 seconds=91.7 saved=benchmark_results/taf_plus_paper/trajectories/v1_taf_sim1_a000-000-100_s3.json
+method=random sim1_a033-033-034_s3 seconds=0.0 saved=benchmark_results/taf_plus_paper/trajectories/v1_random_sim1_a033-033-034_s3.json
+method=bo sim1_a033-033-034_s3 seconds=18.1 saved=benchmark_results/taf_plus_paper/trajectories/v1_bo_sim1_a033-033-034_s3.json
+method=taf sim1_a033-033-034_s3 seconds=93.4 saved=benchmark_results/taf_plus_paper/trajectories/v1_taf_sim1_a033-033-034_s3.json
+method=random sim1_a050-030-020_s3 seconds=0.0 saved=benchmark_results/taf_plus_paper/trajectories/v1_random_sim1_a050-030-020_s3.json
+method=bo sim1_a050-030-020_s3 seconds=18.6 saved=benchmark_results/taf_plus_paper/trajectories/v1_bo_sim1_a050-030-020_s3.json
+method=taf sim1_a050-030-020_s3 seconds=93.1 saved=benchmark_results/taf_plus_paper/trajectories/v1_taf_sim1_a050-030-020_s3.json
+method=random sim1_a030-050-020_s3 seconds=0.0 saved=benchmark_results/taf_plus_paper/trajectories/v1_random_sim1_a030-050-020_s3.json
+method=bo sim1_a030-050-020_s3 seconds=17.2 saved=benchmark_results/taf_plus_paper/trajectories/v1_bo_sim1_a030-050-020_s3.json
+method=taf sim1_a030-050-020_s3 seconds=91.6 saved=benchmark_results/taf_plus_paper/trajectories/v1_taf_sim1_a030-050-020_s3.json
+.venv/lib/python3.12/site-packages/botorch/optim/optimize.py:796: RuntimeWarning: Optimization failed in `gen_candidates_scipy` with the following warning(s):
+[OptimizationWarning('Optimization failed within `scipy.optimize.minimize` with status 2 and message ABNORMAL: .')]
+Trying again with a new set of initial conditions.
+  return _optimize_acqf_batch(opt_inputs=opt_inputs)
+sim=sim2_r02 seed=3 users=10 seconds=201.1
+sim=sim2_r02 best=(d1=9, d2=0.2) seconds=470.9 saved=benchmark_results/taf_plus_paper/decay/v1ext_sim2_r02_a030-050-020_s3.json
+method=bo sim2_r02_a030-050-020_s3 seconds=158.7 saved=benchmark_results/taf_plus_paper/trajectories/v1ext_bo_sim2_r02_a030-050-020_s3.json
+method=taf_plus sim2_r02_a030-050-020_s3 seconds=669.5 saved=benchmark_results/taf_plus_paper/trajectories/v1ext_taf_plus_sim2_r02_a030-050-020_s3.json
+method=taf sim2_r02_a030-050-020_s3 seconds=673.2 saved=benchmark_results/taf_plus_paper/trajectories/v1ext_taf_sim2_r02_a030-050-020_s3.json

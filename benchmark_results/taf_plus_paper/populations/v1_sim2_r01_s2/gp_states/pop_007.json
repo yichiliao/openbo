@@ -1,0 +1,43 @@
+{
+  "gp_states": [
+    {
+      "kernel_type": "rbf",
+      "lengthscale": [
+        1.7078425180107049,
+        1.6271993429178775,
+        54.598150033144236,
+        54.598150033144236
+      ],
+      "variance": 222.67595712735135,
+      "noise": 0.002164866221044893,
+      "standardize_targets": true,
+      "optimize_noise": true
+    },
+    {
+      "kernel_type": "rbf",
+      "lengthscale": [
+        54.598150033144236,
+        1.2476872732355127,
+        1.1990898340110374,
+        19.131948362057443
+      ],
+      "variance": 106.85794455578338,
+      "noise": 0.0030397425497176414,
+      "standardize_targets": true,
+      "optimize_noise": true
+    },
+    {
+      "kernel_type": "rbf",
+      "lengthscale": [
+        54.598150033144236,
+        54.598150033144236,
+        1.2862646314381099,
+        1.3313726004214597
+      ],
+      "variance": 50.793863771319536,
+      "noise": 0.0010327027910856503,
+      "standardize_targets": true,
+      "optimize_noise": true
+    }
+  ]
+}

@@ -11,6 +11,8 @@ behaviour and copies none of it. The design record, with the paper and code
 notes, decisions, measurements and open questions, is
 [`docs/plans/naf.md`](../plans/naf.md). Read it before changing NAF code.
 
+[NAF+](naf-plus.md) builds on this NAF: an AF that also reads objective weights (`NAFConfig.n_weights > 0`), plus a novelty detector that falls back to EI.
+
 ## The pieces
 
 - **Task families** (`test_functions/metabo_families.py`): MetaBO's three

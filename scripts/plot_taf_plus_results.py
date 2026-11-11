@@ -13,6 +13,10 @@ Writes (with the metric as a suffix):
 
 - `sim2_<metric>.png`: one panel per similarity range (Simulation 2).
 - `sim1_<metric>.png`: one panel per objective weight vector (Simulation 1).
+- `sim3_<metric>.png`: the three other base functions (Simulation 3).
+- `sim4_<metric>.png`: TAF+ with 2, 4, 6 and 8 population models (Simulation 4).
+- `population_hv.png`: hypervolume per iteration while modeling each simulation's
+  population (Appendix C), mean and 95% band over its population users.
 - `decay.png`: the decay search scores (mean per-iteration value) per range,
   with the chosen pair and the paper's.
 
@@ -50,6 +54,13 @@ STYLES = {
 SIM2 = ("sim2_r005", "sim2_r01", "sim2_r02", "sim2_r03")
 SIM2_LABELS = {"sim2_r005": "range 0.05", "sim2_r01": "range 0.1", "sim2_r02": "range 0.2", "sim2_r03": "range 0.3"}
 PAPER_DECAY = {"sim2_r005": (7, 0.1), "sim2_r01": (4, 0.1), "sim2_r02": (4, 0.2), "sim2_r03": (3, 0.2)}
+SIM3 = ("sim3_relocated", "sim3_branin", "sim3_branin_hartmann")
+SIM3_LABELS = {
+    "sim3_relocated": "Relocated Spheres",
+    "sim3_branin": "Spheres + Branin",
+    "sim3_branin_hartmann": "Sphere + Branin + Hartmann 3D",
+}
+SIM4_MODELS = (2, 4, 6, 8)
 SIM1_ALPHAS = ("a100-000-000", "a000-100-000", "a000-000-100", "a033-033-034", "a050-030-020", "a030-050-020")
 INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 
@@ -80,13 +91,20 @@ def log_regret(run: dict, metric: str) -> np.ndarray:
     return np.log10(np.maximum(np.asarray([u[key] for u in run["users"]]), 1e-12))
 
 
-def load_runs(root: Path, test_id: str, sim: str, alpha: str, seed: int, metric: str) -> dict[str, np.ndarray]:
-    """Return log regret per method for one simulation and weight vector."""
+def load_runs(root: Path, test_id: str, sim: str, alpha: str, seeds: list[int], metric: str) -> dict[str, np.ndarray]:
+    """Return log regret per method for one simulation and weight vector.
+
+    The new users of every seed found are stacked, so the band covers seeds and users.
+    """
     out = {}
     for method in STYLES:
-        path = root / "trajectories" / f"{test_id}_{method}_{sim}_{alpha}_s{seed}.json"
-        if path.exists():
-            out[method] = log_regret(json.loads(path.read_text(encoding="utf-8")), metric)
+        rows = [
+            log_regret(json.loads(path.read_text(encoding="utf-8")), metric)
+            for seed in seeds
+            if (path := root / "trajectories" / f"{test_id}_{method}_{sim}_{alpha}_s{seed}.json").exists()
+        ]
+        if rows:
+            out[method] = np.vstack(rows)
     return out
 
 
@@ -125,13 +143,77 @@ def summary_rows(name: str, runs: dict[str, np.ndarray], evals: list[int]) -> li
     return rows
 
 
+def plot_sim4(root: Path, args: argparse.Namespace, plots: Path, table: list[str]) -> None:
+    """Simulation 4: TAF+ with the first k population models, against BO and random."""
+    runs: dict[str, np.ndarray] = {}
+    for k in SIM4_MODELS:
+        rows = [
+            log_regret(json.loads(path.read_text(encoding="utf-8")), args.metric)
+            for seed in args.seeds
+            if (path := root / "trajectories" / f"{args.test_id}_taf_plus_sim4_a030-050-020_s{seed}_m{k}.json").exists()
+        ]
+        if rows:
+            runs[f"TAF+ {k} models"] = np.vstack(rows)
+    if not runs:
+        return
+    baselines = load_runs(root, args.test_id, "sim4", "a030-050-020", args.seeds, args.metric)
+    fig, ax = plt.subplots(figsize=(5.4, 3.8))
+    shades = ["#9ec5f0", "#6aa3e6", "#2a78d6", "#0f4a99"]
+    for (label, r), color in zip(runs.items(), shades):
+        evals = np.arange(1, r.shape[1] + 1)
+        mean = r.mean(axis=0)
+        half = 1.96 * r.std(axis=0, ddof=1) / np.sqrt(r.shape[0])
+        ax.plot(evals, mean, color=color, linewidth=2, label=label)
+        ax.fill_between(evals, mean - half, mean + half, color=color, alpha=0.1, linewidth=0)
+        table.append(f"{'sim4':<22} {label:<18} " + " ".join(f"{r[:, e - 1].mean():7.2f}" for e in args.evals if e <= r.shape[1]))
+    for method in ("bo", "random"):
+        if method in baselines:
+            label, color, dash = STYLES[method]
+            ax.plot(np.arange(1, baselines[method].shape[1] + 1), baselines[method].mean(axis=0), color=color, linestyle=dash, linewidth=1.5, label=label)
+    style_axis(ax, "Simulation 4: number of population models")
+    ax.set_xlabel("Evaluation", color=MUTED, fontsize=9)
+    ax.set_ylabel(METRIC_LABELS[args.metric], color=MUTED, fontsize=9)
+    ax.legend(frameon=False, fontsize=8)
+    fig.tight_layout()
+    fig.savefig(plots / f"{args.out_prefix}sim4_{args.metric}.png", dpi=150)
+    plt.close(fig)
+
+
+def plot_population_hv(root: Path, args: argparse.Namespace, plots: Path) -> None:
+    """Appendix C: hypervolume per iteration while modeling each simulation's population."""
+    found = []
+    by_sim: dict[str, list[np.ndarray]] = {}
+    for seed in args.seeds:
+        for path in sorted((root / "populations").glob(f"{args.test_id}_*_s{seed}/population_modeling.json")):
+            info = json.loads(path.read_text(encoding="utf-8"))
+            by_sim.setdefault(info["sim"], []).append(np.asarray(info["hypervolume"]))
+    found = [(sim, np.vstack(rows)) for sim, rows in by_sim.items()]
+    if not found:
+        return
+    fig, ax = plt.subplots(figsize=(7, 4.2))
+    for sim, hv in found:
+        steps = np.arange(1, hv.shape[1] + 1)
+        mean = hv.mean(axis=0)
+        half = 1.96 * hv.std(axis=0, ddof=1) / np.sqrt(hv.shape[0])
+        ax.plot(steps, mean, linewidth=1.8, label=sim)
+        ax.fill_between(steps, mean - half, mean + half, alpha=0.08, linewidth=0)
+    style_axis(ax, "Population modeling: hypervolume per iteration")
+    ax.set_xlabel("Evaluation", color=MUTED, fontsize=9)
+    ax.set_ylabel("Hypervolume", color=MUTED, fontsize=9)
+    ax.legend(frameon=False, fontsize=7, ncol=2)
+    fig.tight_layout()
+    fig.savefig(plots / f"{args.out_prefix}population_hv.png", dpi=150)
+    plt.close(fig)
+
+
 def main() -> None:
     """Make the plots and print the summary table."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--results-dir", default="test_results/taf_plus", help="Root with trajectories/ and decay/.")
     parser.add_argument("--test-id", default="default", help="Experiment id used in filenames.")
-    parser.add_argument("--seed", type=int, default=0, help="Seed of the runs to plot.")
+    parser.add_argument("--seeds", type=int, nargs="+", default=[0], help="Seeds to pool (new users of every seed).")
     parser.add_argument("--evals", type=int, nargs="+", default=[1, 2, 3, 5, 10, 20], help="Table columns.")
+    parser.add_argument("--out-prefix", default="", help="Prefix of the plot filenames (e.g. appD_).")
     parser.add_argument("--metric", choices=sorted(METRIC_KEYS), default="instant", help="Regret of each design or of the best so far.")
     args = parser.parse_args()
 
@@ -146,12 +228,16 @@ def main() -> None:
 
     groups = [
         ("sim2", [(sim, "a030-050-020", SIM2_LABELS[sim]) for sim in SIM2], (1, 4)),
+        ("sim3", [(sim, "a030-050-020", SIM3_LABELS[sim]) for sim in SIM3], (1, 3)),
         ("sim1", [("sim1", a, "α = " + a[1:].replace("-", " / ")) for a in SIM1_ALPHAS], (2, 3)),
     ]
     for name, panels, (rows, cols) in groups:
-        loaded = [(load_runs(root, args.test_id, sim, a, args.seed, args.metric), label) for sim, a, label in panels]
-        if not any(runs for runs, _ in loaded):
+        loaded = [(load_runs(root, args.test_id, sim, a, args.seeds, args.metric), label) for sim, a, label in panels]
+        loaded = [(runs, label) for runs, label in loaded if runs]
+        if not loaded:
             continue
+        if len(loaded) < len(panels) and rows == 1:
+            cols = len(loaded)
         fig, axes = plt.subplots(rows, cols, figsize=(4.2 * cols, 3.4 * rows), sharey=True, squeeze=False)
         for ax, (runs, label) in zip(axes.flat, loaded):
             plot_panel(ax, runs, label)
@@ -165,10 +251,13 @@ def main() -> None:
         )
         fig.legend(handles, labels, loc="upper center", ncol=len(labels), frameon=False, fontsize=9)
         fig.tight_layout(rect=(0, 0, 1, 0.92))
-        fig.savefig(plots / f"{name}_{args.metric}.png", dpi=150)
+        fig.savefig(plots / f"{args.out_prefix}{name}_{args.metric}.png", dpi=150)
         plt.close(fig)
 
-    decay_files = [root / "decay" / f"{args.test_id}_{sim}_a030-050-020_s{args.seed}.json" for sim in SIM2]
+    plot_sim4(root, args, plots, table)
+    plot_population_hv(root, args, plots)
+
+    decay_files = [root / "decay" / f"{args.test_id}_{sim}_a030-050-020_s{args.seeds[0]}.json" for sim in SIM2]
     found = [(sim, json.loads(p.read_text(encoding="utf-8"))) for sim, p in zip(SIM2, decay_files) if p.exists()]
     if found:
         fig, axes = plt.subplots(1, len(found), figsize=(3.6 * len(found), 3.6), squeeze=False)
@@ -189,7 +278,7 @@ def main() -> None:
             fig.colorbar(image, ax=ax, label="mean value per iteration")
         fig.suptitle("Decay search: o = chosen, x = paper's choice", color=INK, fontsize=10)
         fig.tight_layout()
-        fig.savefig(plots / "decay.png", dpi=150)
+        fig.savefig(plots / f"{args.out_prefix}decay.png", dpi=150)
         plt.close(fig)
 
     if args.metric == "hv":

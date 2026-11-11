@@ -1,0 +1,13 @@
+{
+  "family": "double_sphere_wide",
+  "shift_range": 0.2,
+  "scale_range": 0.2,
+  "tau": 0.1,
+  "naf_only_iterations": 3,
+  "detector_epochs": 2000,
+  "detector_users": 20,
+  "detector_points_per_dim": 10,
+  "detector_weight_step": 0.1,
+  "detector_hidden_units": 256,
+  "detector_seed": 0
+}

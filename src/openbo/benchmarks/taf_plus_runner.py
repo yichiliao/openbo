@@ -85,7 +85,34 @@ TAF_PLUS_SIMULATIONS = {
     "sim2_r01": 0.1,
     "sim2_r02": 0.2,
     "sim2_r03": 0.3,
+    # Simulation 3: other base functions, range 0.1 (App. B.5).
+    "sim3_relocated": 0.1,
+    "sim3_branin": 0.1,
+    "sim3_branin_hartmann": 0.1,
+    # Simulation 4: population size, range 0.2 (App. B.6).
+    "sim4": 0.2,
 }
+
+# Base function per simulation (default: the three Spheres of Table 6).
+TAF_PLUS_SIM_BASE = {
+    "sim3_relocated": "relocated_spheres",
+    "sim3_branin": "spheres_branin",
+    "sim3_branin_hartmann": "spheres_branin_hartmann",
+}
+
+# Sizes that differ from SimulationSettings' defaults, read off the paper's Figures 18-20:
+# Simulation 3 runs 40, 50 and 60 population evaluations (20 random + 20/30/40 iterations) and
+# 40 adaptation evaluations; Simulation 4 uses 8 population users and 10 adaptation evaluations.
+TAF_PLUS_SIM_OVERRIDES = {
+    "sim3_relocated": {"population_iter": 20, "n_evals": 40},
+    "sim3_branin": {"population_iter": 30, "n_evals": 40},
+    "sim3_branin_hartmann": {"population_iter": 40, "n_evals": 40},
+    "sim4": {"n_population": 8, "n_evals": 10},
+}
+
+# Simulation 4's population sizes (Figure 20), taken as the first k population users.
+SIM4_MODEL_COUNTS = (2, 4, 6, 8)
+SIM4_DECAY = (4, 0.2)  # the paper's best decay for range 0.2 (App. B.4)
 
 # Simulation 1's objective weights (App. B.3); Simulation 2 uses the last one.
 SIM1_OBJECTIVE_WEIGHTS = (
@@ -121,12 +148,22 @@ class SimulationSettings:
     w_ref: tuple[float, float, float] = (1.2, 1.2, 1.2)
 
 
+def settings_for(sim: str, **overrides: object) -> SimulationSettings:
+    """Return the settings of a simulation: the paper's sizes for it, then any keyword overrides."""
+    if sim not in TAF_PLUS_SIMULATIONS:
+        raise ValueError(f"Unknown simulation '{sim}'.")
+    values = {**TAF_PLUS_SIM_OVERRIDES.get(sim, {}), **{k: v for k, v in overrides.items() if v is not None}}
+    return SimulationSettings(**values)  # type: ignore[arg-type]
+
+
 def simulation_users(sim: str, seed: int, settings: SimulationSettings) -> tuple[list[SphereUser], list[SphereUser]]:
     """Return ``(population users, new users)`` for a simulation and seed."""
     if sim not in TAF_PLUS_SIMULATIONS:
         raise ValueError(f"Unknown simulation '{sim}'.")
     r = TAF_PLUS_SIMULATIONS[sim]
-    users = make_sphere_users(settings.n_population + settings.n_new, r, r, seed)
+    users = make_sphere_users(
+        settings.n_population + settings.n_new, r, r, seed, base=TAF_PLUS_SIM_BASE.get(sim, "three_spheres")
+    )
     return users[: settings.n_population], users[settings.n_population :]
 
 
@@ -274,10 +311,16 @@ def run_taf_plus_method(
     settings: SimulationSettings,
     d1: int = 2,
     d2: float = 0.3,
+    n_models: int | None = None,
 ) -> dict[str, object]:
-    """Run one method on every new user of a simulation and return a JSON-ready dict."""
+    """Run one method on every new user of a simulation and return a JSON-ready dict.
+
+    `n_models` keeps only the first k population users (Simulation 4).
+    """
     if method not in TAF_PLUS_METHODS:
         raise ValueError(f"Unknown method '{method}'.")
+    if n_models is not None:
+        population = population.first(n_models)
     alpha = np.asarray(objective_weights, dtype=np.float64)
     _, new_users = simulation_users(sim, seed, settings)
     source_dir = None
@@ -353,6 +396,7 @@ def run_taf_plus_method(
         "sim": sim,
         "objective_weights": [float(a) for a in alpha],
         "seed": seed,
+        "n_models": n_models,
         "decay": [d1, d2] if method == "taf_plus" else None,
         "settings": asdict(settings),
         "users": records,

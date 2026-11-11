@@ -98,3 +98,22 @@ def test_gp_scores_use_the_prior_before_any_data() -> None:
     expected = af.logits(naf_features(*gp_mean_std(gp, x), x, 8, 30))
     np.testing.assert_allclose(score(x), expected)
     assert score(x).dtype == np.float64
+
+
+def test_adaptive_set_skips_excluded_points() -> None:
+    adaptive_set = AdaptiveSet.build(2, points_per_dim=5, k=2, n_local=20, seed=0)
+
+    def score(x: np.ndarray) -> np.ndarray:
+        return -np.sum((x - 0.5) ** 2, axis=1)  # the grid point (0.5, 0.5) is the argmax
+
+    best = adaptive_set.maximize(score)
+    assert np.allclose(best, [[0.5, 0.5]])
+    second = adaptive_set.maximize(score, exclude=best)
+    assert not np.allclose(second, best)
+    assert np.allclose(adaptive_set.maximize(score, exclude=np.empty((0, 2))), best)
+    for seed in range(20):
+        drawn = adaptive_set.sample(score, np.random.default_rng(seed), exclude=best)
+        assert not np.allclose(drawn, best)
+    points, _ = adaptive_set.candidates(score)
+    # Excluding every candidate leaves the choice unchanged instead of failing.
+    assert np.allclose(adaptive_set.maximize(score, exclude=points), best)

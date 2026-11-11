@@ -108,6 +108,10 @@ class ConBOConfig:
     replay_filter: bool = True
     replay_max_variance: float | None = None
     replay_variance_fraction: float = 0.05
+    # False follows the paper: the replayed variance is the average of the users' own
+    # variances. True adds the spread of their means (OpenBO's variation, see
+    # docs/plans/paper_reproduction.md).
+    replay_between_users: bool = False
     # BNN training.
     population_epochs: int = 1200
     online_epochs: int = 15
@@ -118,6 +122,11 @@ class ConBOConfig:
     dropout: float = 0.1
     learning_rate: float = 1e-3
     n_predict_samples: int = 50
+    # How the population model remembers finished users. "replay" is ConBO (eq. 7);
+    # "none" is the paper's "BNN without Replay" (the BNN just keeps the online updates
+    # from each new user); "direct" is "BNN with Direct Replay" (retrain on every past
+    # observation, by the NLL, after each user).
+    memory: Literal["replay", "none", "direct"] = "replay"
     # Use the user GP at all ("ConBO without GP" ablation when False).
     use_user_gp: bool = True
     kernel_type: str = "matern52"
@@ -139,6 +148,8 @@ class ConBOConfig:
             raise ValueError("replay_variance_fraction must be positive.")
         if self.retrain not in ("reset", "continue"):
             raise ValueError("retrain must be 'reset' or 'continue'.")
+        if self.memory not in ("replay", "none", "direct"):
+            raise ValueError("memory must be 'replay', 'none' or 'direct'.")
         if self.weight_clock not in ("evaluations", "bo_steps"):
             raise ValueError("weight_clock must be 'evaluations' or 'bo_steps'.")
         # Fail early on schedule values population_weight would reject.
@@ -351,11 +362,46 @@ class ConBOPopulation:
         self.users.append(
             StoredUser(optimizer.name, optimizer.x_obs.copy(), optimizer.y_obs.copy(), gp_state_dict(gp))
         )
-        report = self._retrain()
+        report = self._retrain() if self.config.memory == "replay" else self._retrain_from_data(optimizer)
         self.replay_reports.append(report)
         if self.memory_dir is not None:
             self.save()
         return report
+
+    def _retrain_from_data(self, optimizer: ConBOSequentialOptimizer) -> ReplayReport:
+        """The paper's two BNN ablations, which do not replay through the stored GPs.
+
+        ``memory="none"``: keep the BNN as the finished user's online updates left it (the
+        first user has no BNN yet, so one is trained on their data). ``memory="direct"``:
+        retrain on every stored observation with the NLL.
+        """
+        start = time.perf_counter()
+        if self.config.memory == "none":
+            if optimizer.bnn is not None:
+                self.bnn = optimizer.bnn
+            else:
+                self.bnn = PopulationBNN(self.config.bnn_config())
+                self.bnn.fit_nll(optimizer.x_obs, optimizer.y_obs, self.config.population_epochs)
+            n_points = int(optimizer.y_obs.shape[0])
+        else:
+            x = np.vstack([u.x for u in self.users])
+            y = np.concatenate([u.y for u in self.users])
+            if self.bnn is None:
+                self.bnn = PopulationBNN(self.config.bnn_config())
+            elif self.config.retrain == "reset":
+                self.bnn.reset_parameters()
+            self.bnn.set_normalization(y)
+            self.bnn.fit_nll(x, y, self.config.population_epochs)
+            n_points = int(y.shape[0])
+        return ReplayReport(
+            n_users=self.n_users,
+            max_variance=None,
+            n_inputs_kept=n_points,
+            n_inputs_total=n_points,
+            kept_fraction=[],
+            excluded_users=[],
+            seconds=time.perf_counter() - start,
+        )
 
     def _retrain(self) -> ReplayReport:
         """Retrain the BNN on replayed targets from every stored user."""
@@ -375,7 +421,7 @@ class ConBOPopulation:
             threshold = standardized_variance_threshold(
                 gps, x, self.config.replay_variance_fraction
             )
-        targets: ReplayTargets = replay_targets(gps, x, threshold)
+        targets: ReplayTargets = replay_targets(gps, x, threshold, self.config.replay_between_users)
         if targets.x.shape[0] > 0:
             if self.bnn is None:
                 self.bnn = PopulationBNN(self.config.bnn_config())
@@ -467,6 +513,8 @@ class ConBOUserResult:
     weights: list[float | None]
     seconds: float
     replay: ReplayReport
+    # Time of each suggest + observe step (without the retraining after the user).
+    iteration_seconds: list[float] = field(default_factory=list)
 
 
 @dataclass
@@ -474,6 +522,8 @@ class ConBORunResult:
     """Results of :func:`run_conbo_sequence`, one entry per user in order."""
 
     users: list[ConBOUserResult] = field(default_factory=list)
+    # The population after the last user, e.g. to re-optimize earlier users from it.
+    population: ConBOPopulation | None = None
 
 
 def run_conbo_sequence(
@@ -497,9 +547,12 @@ def run_conbo_sequence(
     for i, objective in enumerate(objectives):
         start = time.perf_counter()
         optimizer = population.new_user(None if names is None else names[i])
+        iteration_seconds: list[float] = []
         for _ in range(n_iter_per_user):
+            step = time.perf_counter()
             x = optimizer.suggest()
             optimizer.observe(x, np.asarray(objective(x), dtype=np.float64))
+            iteration_seconds.append(time.perf_counter() - step)
         replay = population.finish_user(optimizer)
         result.users.append(
             ConBOUserResult(
@@ -512,6 +565,8 @@ def run_conbo_sequence(
                 weights=optimizer.weight_history,
                 seconds=time.perf_counter() - start,
                 replay=replay,
+                iteration_seconds=iteration_seconds,
             )
         )
+    result.population = population
     return result

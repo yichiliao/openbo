@@ -92,10 +92,16 @@ Methods (`benchmarks/conbo_runner.py`); all see the same users per seed:
 | `bo` | standard BO, each user from scratch with `r₀` random starts |
 | `taf_m` / `taf_r` | OpenBO's TAF with all previous users as sources |
 | `single_gp` | one GP on all previous users' data plus the current user's |
+| `taf_paper` | the paper's TAF baseline: TAF with decayed source weights (`d1 = 0`, `d2` per test), i.e. one-objective TAF+ |
+| `conbo_no_gp` | ablation: the population EI only (no user GP) |
+| `conbo_no_filter` | ablation: no variance filter on the replay targets |
+| `bnn_no_replay` | ablation: the BNN keeps its online updates, no replay (`ConBOConfig.memory="none"`) |
+| `bnn_direct_replay` | ablation: retrain the BNN on every past observation after each user (`memory="direct"`) |
+| `conbo_total_var` | OpenBO's variation, not in the paper: the replayed variance also holds the spread between users (`replay_between_users=True`) |
 
-Only `--test branin` (the paper's Test 1) is defined so far. Results go to
+Tests (`--test`): `branin` (Test 1 with OpenBO's default handover schedule, `alpha1 = 5`, `alpha2 = 0.2`), `branin_paper` (Test 1 with the paper's `alpha1 = 16`, `alpha2 = 0.1`), `mccormick_paper` (Test 2: McCormick, 7 evaluations per user) and `branin_revisit` (Test 3: 10 users, then every user re-optimized from the final population). Every result also records the time of each iteration and, for the BNN methods, the BNN's predicted mean and variance on a 50 × 50 grid after the last user. [Reproducing the papers](paper-reproduction.md#conbo-tests) shows how to draw the paper's figures from these runs. Results go to
 `test_results/conbo/trajectories/<test_id>_<method>_<test>_s<seed>.json`. The
-archived 5-seed comparison is described in [Archived results](results.md#archived-benchmark-results).
+archived 5-seed comparison and the paper reproduction are described in [Archived results](results.md#archived-benchmark-results).
 
 ## Run through the server
 
